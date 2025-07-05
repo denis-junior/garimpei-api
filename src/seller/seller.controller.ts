@@ -7,6 +7,10 @@ import {
   Param,
   Delete,
   UseGuards,
+  Req,
+  UnauthorizedException,
+  Request,
+  ParseFloatPipe,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
@@ -15,6 +19,7 @@ import { CreateSellerDto } from './dto/create-seller.dto';
 import { UpdateSellerDto } from './dto/update-seller.dto';
 import { LoginSellerDto } from './dto/login-seller.dto';
 import { AuthGuard } from '@nestjs/passport';
+import { IRequestWithUser } from 'src/interfaces';
 
 @Controller('sellers')
 export class SellerController {
@@ -34,6 +39,35 @@ export class SellerController {
   @Get()
   findAll() {
     return this.sellerService.findAll();
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('balance')
+  getBalance(@Req() req: IRequestWithUser) {
+    if (!req.user.seller) {
+      throw new UnauthorizedException(
+        'Acesso permitido apenas para vendedores.',
+      );
+    }
+    const sellerId = Number(req.user.userId);
+    if (!sellerId || isNaN(sellerId)) {
+      throw new UnauthorizedException('ID de vendedor inválido.');
+    }
+    return this.sellerService.getBalance(sellerId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('withdraw')
+  requestWithdrawal(
+    @Req() req: IRequestWithUser,
+    @Body('amount', ParseFloatPipe) amount: number,
+  ) {
+    if (!req.user.seller) {
+      throw new UnauthorizedException(
+        'Acesso permitido apenas para vendedores.',
+      );
+    }
+    return this.sellerService.requestWithdrawal(req.user.userId, amount);
   }
 
   @UseGuards(AuthGuard('jwt'))

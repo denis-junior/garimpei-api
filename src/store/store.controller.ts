@@ -33,7 +33,7 @@ export class StoreController {
   @Get()
   findAll(@Req() req: IRequestWithUser): Promise<Store[] | Store> {
     console.log('Usuário autenticado:', req.user);
-    if (req.user.seller) {
+    if (req?.user?.seller) {
       return this.storeService.findAll(Number(req.user.userId));
     }
     return this.storeService.findAll();

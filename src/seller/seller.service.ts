@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Seller } from './seller.entity';
@@ -7,14 +7,21 @@ import { UpdateSellerDto } from './dto/update-seller.dto';
 import * as bcrypt from 'bcrypt';
 import { Buyer } from 'src/buyer/buyer.entity';
 import { JwtService } from '@nestjs/jwt';
+import { Transaction } from 'src/payment/transaction.entity';
+import { TransactionType } from 'src/payment/transaction.entity';
+import { UnauthorizedException, Logger } from '@nestjs/common';
 
 @Injectable()
 export class SellerService {
+  private readonly logger = new Logger(SellerService.name);
+
   constructor(
     @InjectRepository(Seller)
     private sellerRepository: Repository<Seller>,
     @InjectRepository(Buyer)
     private buyerRepository: Repository<Buyer>,
+    @InjectRepository(Transaction)
+    private transactionRepository: Repository<Transaction>,
     private jwtService: JwtService,
   ) {}
 
@@ -82,5 +89,55 @@ export class SellerService {
   async findByEmail(email: string): Promise<Seller | undefined> {
     const seller = await this.sellerRepository.findOne({ where: { email } });
     return seller === null ? undefined : seller;
+  }
+
+  async getBalance(sellerId: number): Promise<{ balance: number }> {
+    const seller = await this.sellerRepository.findOneBy({ id: sellerId });
+    if (!seller) {
+      throw new NotFoundException('Vendedor não encontrado.');
+    }
+    return { balance: Number(seller.balance) };
+  }
+
+  getTransactionHistory(sellerId: number): Promise<Transaction[]> {
+    return this.transactionRepository.find({
+      where: { seller: { id: sellerId } },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async requestWithdrawal(
+    sellerId: number,
+    amount: number,
+  ): Promise<{ message: string }> {
+    const seller = await this.sellerRepository.findOneBy({ id: sellerId });
+    if (!seller) {
+      throw new NotFoundException('Vendedor não encontrado.');
+    }
+    if (Number(seller.balance) < amount) {
+      throw new UnauthorizedException('Saldo insuficiente para o saque.');
+    }
+    if (!seller.mercadopagoAccountId) {
+      throw new UnauthorizedException(
+        'Conta do Mercado Pago não configurada para o saque.',
+      );
+    }
+
+    // Lógica para chamar a API de Payouts do Mercado Pago iria aqui.
+    // Por enquanto, vamos simular o saque no nosso sistema.
+
+    const newBalance = Number(seller.balance) - amount;
+    await this.sellerRepository.update(seller.id, { balance: newBalance });
+
+    const transaction = this.transactionRepository.create({
+      seller,
+      type: TransactionType.WITHDRAWAL,
+      amount: -amount, // Saques são registrados como valores negativos
+    });
+    await this.transactionRepository.save(transaction);
+
+    this.logger.log(`Saque de ${amount} solicitado pelo vendedor ${sellerId}.`);
+
+    return { message: 'Solicitação de saque processada com sucesso.' };
   }
 }

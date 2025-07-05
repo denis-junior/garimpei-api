@@ -9,6 +9,12 @@ import { Store } from 'src/store/store.entity';
 import { Bid } from 'src/bid/bid.entity';
 import { Image } from 'src/image/image.entity';
 
+export enum ClothingStatus {
+  AUCTIONING = 'auctioning', // Em leilão
+  PENDING_PAYMENT = 'pending_payment', // Aguardando pagamento
+  SOLD = 'sold', // Vendido
+  EXPIRED = 'expired', // Leilão expirou sem lances
+}
 @Entity()
 export class Clothing {
   @PrimaryGeneratedColumn()
@@ -37,6 +43,13 @@ export class Clothing {
 
   @Column({ default: '' })
   size: string;
+
+  @Column({
+    type: 'enum',
+    enum: ClothingStatus,
+    default: ClothingStatus.AUCTIONING,
+  })
+  status: ClothingStatus;
 
   @ManyToOne(() => Store, (store) => store.clothings, { onDelete: 'CASCADE' })
   store: Store;

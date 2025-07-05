@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 import { Store } from '../store/store.entity';
+import { Transaction } from 'src/payment/transaction.entity';
 
 @Entity()
 export class Seller {
@@ -26,4 +27,13 @@ export class Seller {
 
   @OneToMany(() => Store, (store) => store.seller, { cascade: true })
   stores: Store[];
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  balance: number;
+
+  @Column({ nullable: true })
+  mercadopagoAccountId: string; // ID da conta do vendedor no Mercado Pago
+
+  @OneToMany(() => Transaction, (transaction) => transaction.seller)
+  transactions: Transaction[];
 }

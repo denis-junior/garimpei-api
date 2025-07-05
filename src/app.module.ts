@@ -15,17 +15,30 @@ import { ClothingModule } from './clothing/clothing.module';
 import { Image } from './image/image.entity';
 import { ImageModule } from './image/image.module';
 import { AuthModule } from './auth/auth.module';
+import { PaymentModule } from './payment/payment.module';
+import { ScheduleModule } from './schedule/schedule.module';
+import { Order } from './payment/order.entity';
+import { Transaction } from './payment/transaction.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forRoot({
       type: 'postgres',
       host: 'localhost',
-      port: 6000,
+      port: 7000,
       username: 'postgres',
       password: 'root',
       database: 'garimpeidb',
-      entities: [Buyer, Seller, Clothing, Bid, Store, Image],
+      entities: [
+        Buyer,
+        Seller,
+        Clothing,
+        Bid,
+        Store,
+        Image,
+        Order,
+        Transaction,
+      ],
       synchronize: true, // true só para desenvolvimento!
     }),
     BuyerModule,
@@ -35,6 +48,8 @@ import { AuthModule } from './auth/auth.module';
     ClothingModule,
     ImageModule,
     AuthModule,
+    PaymentModule,
+    ScheduleModule,
   ],
   controllers: [AppController],
   providers: [AppService],

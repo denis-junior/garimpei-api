@@ -3,5 +3,5 @@ export interface IAuthRequest extends Request {
 }
 
 export interface IRequestWithUser extends Request {
-  user: { userId: number; email: string; seller: boolean };
+  user: { userId: number; email: string; seller: boolean; sub: string };
 }
