@@ -16,17 +16,20 @@ import { ClothingModule } from './clothing/clothing.module';
 import { Image } from './image/image.entity';
 import { ImageModule } from './image/image.module';
 import { AuthModule } from './auth/auth.module';
+import { MercadoPagoModule } from './mercadoPago/mercadoPago.module';
+import { Transaction } from './transactions/transaction.entity';
+import { WebhooksModule } from './webhooks/webhooks.module';
 
 @Module({
   imports: [
     TypeOrmModule.forRoot({
       type: 'postgres',
-      host: 'localhost',
-      port: 7000,
-      username: 'postgres',
-      password: 'root',
-      database: 'garimpeidb',
-      entities: [Buyer, Seller, Clothing, Bid, Store, Image],
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '5432'),
+      username: process.env.DB_USERNAME || 'postgres',
+      password: process.env.DB_PASSWORD || 'root',
+      database: process.env.DB_DATABASE || 'garimpeidb',
+      entities: [Buyer, Seller, Clothing, Bid, Store, Image, Transaction],
       synchronize: true, // true só para desenvolvimento!
     }),
     BuyerModule,
@@ -37,6 +40,8 @@ import { AuthModule } from './auth/auth.module';
     ImageModule,
     DashboardModule,
     AuthModule,
+    MercadoPagoModule,
+    WebhooksModule,
   ],
   controllers: [AppController],
   providers: [AppService],
