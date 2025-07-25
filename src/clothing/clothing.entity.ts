@@ -5,10 +5,19 @@ import {
   ManyToOne,
   OneToMany,
 } from 'typeorm';
-import { Store } from 'src/store/store.entity';
-import { Bid } from 'src/bid/bid.entity';
-import { Image } from 'src/image/image.entity';
+import { Store } from '../store/store.entity';
+import { Bid } from '../bid/bid.entity';
+import { Image } from '../image/image.entity';
 
+export type ClothingStatus =
+  | 'programmed'
+  | 'active'
+  | 'ended'
+  | 'auctined'
+  | 'waiting_payment'
+  | 'paid'
+  | 'delivery_process'
+  | 'finished';
 @Entity()
 export class Clothing {
   @PrimaryGeneratedColumn()
@@ -37,6 +46,22 @@ export class Clothing {
 
   @Column({ default: '' })
   size: string;
+
+  @Column({
+    type: 'enum',
+    enum: [
+      'programmed',
+      'active',
+      'ended',
+      'auctined',
+      'waiting_payment',
+      'paid',
+      'delivery_process',
+      'finished',
+    ],
+    default: 'programmed',
+  })
+  status: ClothingStatus;
 
   @ManyToOne(() => Store, (store) => store.clothings, { onDelete: 'CASCADE' })
   store: Store;

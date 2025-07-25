@@ -5,8 +5,8 @@ import {
   OneToMany,
   ManyToOne,
 } from 'typeorm';
-import { Seller } from 'src/seller/seller.entity';
-import { Clothing } from 'src/clothing/clothing.entity';
+import { Seller } from '../seller/seller.entity';
+import { Clothing } from '../clothing/clothing.entity';
 
 @Entity()
 export class Store {

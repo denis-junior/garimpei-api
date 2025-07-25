@@ -5,10 +5,11 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Clothing } from './clothing.entity';
+import { Clothing, ClothingStatus } from './clothing.entity';
+import { Store } from '../store/store.entity';
 import { CreateClothingDto } from './dto/create-clothing.dto';
 import { UpdateClothingDto } from './dto/update-clothing.dto';
-import { Store } from 'src/store/store.entity';
+import { ClothingStatusService } from './clothing-status.service';
 
 @Injectable()
 export class ClothingService {
@@ -17,6 +18,7 @@ export class ClothingService {
     private clothingRepository: Repository<Clothing>,
     @InjectRepository(Store)
     private storeRepository: Repository<Store>,
+    private readonly clothingStatusService: ClothingStatusService,
   ) {}
 
   async create(createClotingDto: CreateClothingDto): Promise<Clothing> {
@@ -39,7 +41,17 @@ export class ClothingService {
           'End date and time must be greater than initial date and time',
         );
       }
-      const clothing = this.clothingRepository.create(createClotingDto);
+
+      // Determinar o status inicial
+      const initialStatus = this.clothingStatusService.getInitialStatus(
+        createClotingDto.initial_date,
+        createClotingDto.initial_time,
+      );
+
+      const clothing = this.clothingRepository.create({
+        ...createClotingDto,
+        status: initialStatus as ClothingStatus,
+      });
       return await this.clothingRepository.save(clothing);
     } catch (error: any) {
       throw new BadRequestException(
@@ -222,8 +234,6 @@ export class ClothingService {
       end_time: clothing.end_time,
     };
   }
-  // ...existing code...
-  // ...existing code...
 
   async update(id: number, dto: UpdateClothingDto): Promise<Clothing> {
     await this.clothingRepository.update(id, dto);

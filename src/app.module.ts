@@ -16,9 +16,14 @@ import { ClothingModule } from './clothing/clothing.module';
 import { Image } from './image/image.entity';
 import { ImageModule } from './image/image.module';
 import { AuthModule } from './auth/auth.module';
+// import { MercadoPagoModule } from './mercadoPago/mercadoPago.module';
+// import { Transaction } from './transactions/transaction.entity';
+// import { WebhooksModule } from './webhooks/webhooks.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRoot({
       type: 'postgres',
       host: 'localhost',

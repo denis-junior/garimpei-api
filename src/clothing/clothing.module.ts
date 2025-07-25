@@ -1,15 +1,18 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ClothingService } from './clothing.service';
 import { ClothingController } from './clothing.controller';
+import { ClothingStatusService } from './clothing-status.service';
 import { Clothing } from './clothing.entity';
-import { Store } from 'src/store/store.entity';
-import { BlobModule } from 'src/blob/blob.module';
-import { Image } from 'src/image/image.entity';
+import { Store } from '../store/store.entity';
+import { Image } from '../image/image.entity';
+import { BlobModule } from '../blob/blob.module';
+import { ClothingService } from './clothing.service';
+import { ClothingSchedulerService } from './clothing-scheduler.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Clothing, Store, Image]), BlobModule],
   controllers: [ClothingController],
-  providers: [ClothingService],
+  providers: [ClothingService, ClothingStatusService, ClothingSchedulerService],
+  exports: [ClothingService, ClothingStatusService],
 })
 export class ClothingModule {}

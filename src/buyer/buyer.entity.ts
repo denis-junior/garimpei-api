@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
-import { Bid } from 'src/bid/bid.entity';
+import { Bid } from '../bid/bid.entity';
 
 @Entity()
 export class Buyer {

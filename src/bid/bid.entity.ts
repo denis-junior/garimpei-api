@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
-import { Buyer } from 'src/buyer/buyer.entity';
-import { Clothing } from 'src/clothing/clothing.entity';
+import { Buyer } from '../buyer/buyer.entity';
+import { Clothing } from '../clothing/clothing.entity';
 
 @Entity()
 export class Bid {

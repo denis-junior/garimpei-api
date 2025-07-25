@@ -13,7 +13,6 @@ import {
   Req,
   Query,
 } from '@nestjs/common';
-import { ClothingService } from './clothing.service';
 import { CreateClothingDto } from './dto/create-clothing.dto';
 import { UpdateClothingDto } from './dto/update-clothing.dto';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
@@ -23,6 +22,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { AuthGuard } from '@nestjs/passport';
 import { IRequestWithUser } from 'src/interfaces';
+import { ClothingService } from './clothing.service';
 
 @Controller('clothing')
 export class ClothingController {

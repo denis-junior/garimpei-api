@@ -10,6 +10,7 @@ import {
 import { CreateBidDto } from 'src/bid/dto/create-bid.dto';
 import { CreateImageDto } from 'src/image/dto/create-image.dto';
 import { CreateStoreDto } from 'src/store/dto/create-store.dto';
+import { ClothingStatus } from '../clothing.entity';
 
 export class CreateClothingDto {
   @IsString()
@@ -35,6 +36,9 @@ export class CreateClothingDto {
 
   @IsString()
   size: string;
+
+  @IsString()
+  status: ClothingStatus = 'programmed'; // Default status
 
   @ValidateNested({ each: true })
   @Type(() => CreateStoreDto)
