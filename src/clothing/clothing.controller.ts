@@ -23,11 +23,13 @@ import { Repository, DataSource } from 'typeorm';
 import { AuthGuard } from '@nestjs/passport';
 import { IRequestWithUser } from 'src/interfaces';
 import { ClothingService } from './clothing.service';
+import { ClothingStatusService } from './clothing-status.service';
 
 @Controller('clothing')
 export class ClothingController {
   constructor(
     private readonly clothingService: ClothingService,
+    private readonly clothingStatusService: ClothingStatusService,
     private readonly blobService: BlobService,
     @InjectRepository(Image)
     private readonly imageRepository: Repository<Image>,
@@ -68,6 +70,66 @@ export class ClothingController {
       return this.clothingService.findFinishedWithBidsBySeller(req.user.userId);
     }
     return this.clothingService.findAuctionsWonByBuyer(req.user.userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('create-with-images')
+  @UseInterceptors(FilesInterceptor('images', 10))
+  async createWithImages(
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body() body: CreateClothingDto,
+  ) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const clothing = await queryRunner.manager
+        .getRepository('Clothing')
+        .save(queryRunner.manager.getRepository('Clothing').create(body));
+
+      console.log('Clothing Result:', clothing);
+
+      if (!clothing || !clothing.id) {
+        throw new Error('Falha ao criar o produto');
+      }
+
+      const images: { url: string }[] = [];
+
+      // Processa todas as imagens
+      for (const file of files) {
+        const path = `clothing/${clothing.id}`;
+        const imageUrl = await this.blobService.uploadFile(file, path);
+
+        const image = queryRunner.manager.getRepository('Image').create({
+          url: imageUrl,
+          clothing,
+        });
+        await queryRunner.manager.getRepository('Image').save(image);
+        images.push({ url: imageUrl });
+      }
+
+      // Confirma a transação
+      await queryRunner.commitTransaction();
+
+      return {
+        ...clothing,
+        images,
+      };
+    } catch (error) {
+      // Desfaz a transação em caso de erro
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      // Libera o query runner
+      await queryRunner.release();
+    }
+  }
+
+  @Post('process-all')
+  async processAllStatuses() {
+    await this.clothingStatusService.updateClothingStatuses();
+    return { success: true, message: 'All clothing statuses processed' };
   }
 
   @Get(':id')
@@ -149,60 +211,6 @@ export class ClothingController {
   // }
 
   @UseGuards(AuthGuard('jwt'))
-  @Post('create-with-images')
-  @UseInterceptors(FilesInterceptor('images', 10))
-  async createWithImages(
-    @UploadedFiles() files: Express.Multer.File[],
-    @Body() body: CreateClothingDto,
-  ) {
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    try {
-      const clothing = await queryRunner.manager
-        .getRepository('Clothing')
-        .save(queryRunner.manager.getRepository('Clothing').create(body));
-
-      console.log('Clothing Result:', clothing);
-
-      if (!clothing || !clothing.id) {
-        throw new Error('Falha ao criar o produto');
-      }
-
-      const images: { url: string }[] = [];
-
-      // Processa todas as imagens
-      for (const file of files) {
-        const path = `clothing/${clothing.id}`;
-        const imageUrl = await this.blobService.uploadFile(file, path);
-
-        const image = queryRunner.manager.getRepository('Image').create({
-          url: imageUrl,
-          clothing,
-        });
-        await queryRunner.manager.getRepository('Image').save(image);
-        images.push({ url: imageUrl });
-      }
-
-      // Confirma a transação
-      await queryRunner.commitTransaction();
-
-      return {
-        ...clothing,
-        images,
-      };
-    } catch (error) {
-      // Desfaz a transação em caso de erro
-      await queryRunner.rollbackTransaction();
-      throw error;
-    } finally {
-      // Libera o query runner
-      await queryRunner.release();
-    }
-  }
-
-  @UseGuards(AuthGuard('jwt'))
   @Put(':id')
   update(@Param('id') id: string, @Body() dto: UpdateClothingDto) {
     return this.clothingService.update(+id, dto);
@@ -212,5 +220,38 @@ export class ClothingController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.clothingService.remove(+id);
+  }
+
+  @Post(':id/mark-paid')
+  async markAsPaid(@Param('id') id: string) {
+    const clothing = await this.clothingService.findOne(+id);
+
+    if (clothing.status !== 'waiting_payment') {
+      return { success: false, message: 'Clothing is not waiting for payment' };
+    }
+
+    await this.clothingService.update(+id, { status: 'paid' });
+
+    return {
+      success: true,
+      message: `Clothing ${id} marked as paid`,
+    };
+  }
+
+  @Post(':id/force-next-bidder')
+  async forceNextBidder(@Param('id') id: string) {
+    const clothing = await this.clothingService.findOne(+id);
+
+    if (clothing.status !== 'waiting_payment') {
+      return { success: false, message: 'Clothing is not waiting for payment' };
+    }
+
+    // Forçar processamento do próximo lance
+    await this.clothingStatusService['processNextBidder'](clothing);
+
+    return {
+      success: true,
+      message: `Next bidder process initiated for clothing ${id}`,
+    };
   }
 }

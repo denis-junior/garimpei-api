@@ -24,23 +24,4 @@ export class ClothingSchedulerService {
       this.logger.error('❌ Error in scheduled clothing status update:', error);
     }
   }
-
-  /**
-   * Para testes - executa a cada 10 segundos (remover em produção)
-   */
-  // @Cron('*/10 * * * * *')
-  // async handleTestUpdate(): Promise<void> {
-  //   this.logger.debug(
-  //     '🧪 TEST: Running clothing status check every 10 seconds',
-  //   );
-  //   const startTime = Date.now();
-
-  //   try {
-  //     await this.clothingStatusService.updateClothingStatuses();
-  //     const duration = Date.now() - startTime;
-  //     this.logger.debug(`🧪 TEST: Completed in ${duration}ms`);
-  //   } catch (error) {
-  //     this.logger.error('🧪 TEST: Error in test update:', error);
-  //   }
-  // }
 }
