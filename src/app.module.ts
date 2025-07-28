@@ -20,6 +20,7 @@ import { AuthModule } from './auth/auth.module';
 // import { Transaction } from './transactions/transaction.entity';
 // import { WebhooksModule } from './webhooks/webhooks.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     ImageModule,
     DashboardModule,
     AuthModule,
+    EmailModule,
   ],
   controllers: [AppController],
   providers: [AppService],
