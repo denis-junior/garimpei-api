@@ -21,13 +21,13 @@ export class ClothingStatusService {
    */
   async updateClothingStatuses(): Promise<void> {
     try {
-      this.logger.log('🔍 Checking clothing statuses and auction processes...');
+      this.logger.log('Checking clothing statuses and auction processes...');
 
       const clothings = await this.clothingRepository.find({
         relations: ['bids', 'bids.buyer', 'store', 'store.seller'],
       });
 
-      this.logger.log(`📊 Found ${clothings.length} clothings to check`);
+      this.logger.log(`Found ${clothings.length} clothings to check`);
 
       const now = this.getBrazilianTime();
       const updates: Array<{
@@ -37,7 +37,7 @@ export class ClothingStatusService {
         clothing?: Clothing;
       }> = [];
 
-      this.logger.log(`⏰ Current time: ${this.formatBrazilianTime(now)}`);
+      this.logger.log(`Current time: ${this.formatBrazilianTime(now)}`);
 
       for (const clothing of clothings) {
         // 1. Verificar mudanças de status normais (programmed -> active -> ended)
@@ -65,7 +65,7 @@ export class ClothingStatusService {
         );
       }
     } catch (error) {
-      this.logger.error('💥 Error updating clothing statuses:', error);
+      this.logger.error('Error updating clothing statuses:', error);
       throw error;
     }
   }
@@ -104,7 +104,7 @@ export class ClothingStatusService {
    */
   private async handleEndedStatus(clothing: Clothing): Promise<void> {
     if (!clothing.bids || clothing.bids.length === 0) {
-      this.logger.log(`📝 Clothing ${clothing.id} ended without bids`);
+      this.logger.log(`Clothing ${clothing.id} ended without bids`);
       return;
     }
 
@@ -134,11 +134,11 @@ export class ClothingStatusService {
       });
 
       this.logger.log(
-        `✅ Clothing ${clothing.id} moved to 'auctioned' - Email sent to ${winningBid.buyer.email}`,
+        `Clothing ${clothing.id} moved to 'auctioned' - Email sent to ${winningBid.buyer.email}`,
       );
     } catch (error) {
       this.logger.error(
-        `❌ Error processing ended clothing ${clothing.id}:`,
+        `Error processing ended clothing ${clothing.id}:`,
         error,
       );
     }
@@ -162,7 +162,7 @@ export class ClothingStatusService {
       });
 
       this.logger.log(
-        `⏰ Clothing ${clothing.id} moved to 'waiting_payment' after 1 hour`,
+        `Clothing ${clothing.id} moved to 'waiting_payment' after 1 hour`,
       );
     }
   }
@@ -218,11 +218,11 @@ export class ClothingStatusService {
       });
 
       this.logger.log(
-        `📧 Payment warning sent to seller for clothing ${clothing.id}`,
+        `Payment warning sent to seller for clothing ${clothing.id}`,
       );
     } catch (error) {
       this.logger.error(
-        `❌ Error sending payment warning for clothing ${clothing.id}:`,
+        `Error sending payment warning for clothing ${clothing.id}:`,
         error,
       );
     }
@@ -242,7 +242,7 @@ export class ClothingStatusService {
       });
 
       this.logger.log(
-        `🏁 Clothing ${clothing.id} finished without payment - no more bids available`,
+        `Clothing ${clothing.id} finished without payment - no more bids available`,
       );
       return;
     }
@@ -268,11 +268,11 @@ export class ClothingStatusService {
       });
 
       this.logger.log(
-        `🎯 Clothing ${clothing.id} started second chance with attempt #${nextAttempt + 1} - Email sent to ${nextWinningBid.buyer.email}`,
+        `Clothing ${clothing.id} started second chance with attempt #${nextAttempt + 1} - Email sent to ${nextWinningBid.buyer.email}`,
       );
     } catch (error) {
       this.logger.error(
-        `❌ Error processing next bidder for clothing ${clothing.id}:`,
+        `Error processing next bidder for clothing ${clothing.id}:`,
         error,
       );
     }
@@ -316,7 +316,7 @@ export class ClothingStatusService {
   private calculateClothingStatus(clothing: Clothing, now: Date): string {
     if (!clothing.initial_date || !clothing.initial_time) {
       this.logger.debug(
-        `⚠️ Clothing ID ${clothing.id}: Missing initial date/time`,
+        `Clothing ID ${clothing.id}: Missing initial date/time`,
       );
       return 'programmed';
     }
@@ -338,7 +338,7 @@ export class ClothingStatusService {
           )
         : null;
 
-    this.logger.debug(`🧮 Clothing ID ${clothing.id} calculation:`);
+    this.logger.debug(`Clothing ID ${clothing.id} calculation:`);
     this.logger.debug(`Now (Brazil): ${this.formatBrazilianTime(now)}`);
     this.logger.debug(
       `Initial (Brazil): ${this.formatBrazilianTime(initialDateTime)}`,
@@ -351,7 +351,7 @@ export class ClothingStatusService {
     // Se ainda não chegou a hora inicial
     if (now < initialDateTime) {
       this.logger.debug(
-        `⏳ Clothing ID ${clothing.id}: Still programmed (before initial time)`,
+        `Clothing ID ${clothing.id}: Still programmed (before initial time)`,
       );
       return 'programmed';
     }
@@ -359,7 +359,7 @@ export class ClothingStatusService {
     // Se não há data/hora final definida, permanece ativo
     if (!endDateTime) {
       this.logger.debug(
-        `🟢 Clothing ID ${clothing.id}: Should be active (no end time set)`,
+        `Clothing ID ${clothing.id}: Should be active (no end time set)`,
       );
       return 'active';
     }
@@ -372,7 +372,7 @@ export class ClothingStatusService {
       )
     ) {
       this.logger.debug(
-        `🔒 Clothing ID ${clothing.id}: Keeping post-auction status (${clothing.status})`,
+        `Clothing ID ${clothing.id}: Keeping post-auction status (${clothing.status})`,
       );
       return clothing.status;
     }
@@ -380,14 +380,14 @@ export class ClothingStatusService {
     // Se passou da hora final e ainda não está em status pós-leilão
     if (now > endDateTime) {
       this.logger.debug(
-        `🏁 Clothing ID ${clothing.id}: Should be ended (after end time)`,
+        `Clothing ID ${clothing.id}: Should be ended (after end time)`,
       );
       return 'ended';
     }
 
     // Se está entre a hora inicial e final
     this.logger.debug(
-      `🟢 Clothing ID ${clothing.id}: Should be active (between times)`,
+      `Clothing ID ${clothing.id}: Should be active (between times)`,
     );
     return 'active';
   }
@@ -402,18 +402,16 @@ export class ClothingStatusService {
       oldStatus: ClothingStatus;
     }>,
   ): Promise<void> {
-    this.logger.log(
-      `💾 Starting batch update of ${updates.length} clothings...`,
-    );
+    this.logger.log(`Starting batch update of ${updates.length} clothings...`);
 
     for (const update of updates) {
       await this.clothingRepository.update(update.id, {
         status: update.status,
       });
-      this.logger.debug(`💾 Updated clothing ID ${update.id} in database`);
+      this.logger.debug(`Updated clothing ID ${update.id} in database`);
     }
 
-    this.logger.log('💾 Batch update completed');
+    this.logger.log('Batch update completed');
   }
 
   /**
@@ -421,7 +419,7 @@ export class ClothingStatusService {
    */
   getInitialStatus(initialDate: string, initialTime: string): string {
     if (!initialDate || !initialTime) {
-      this.logger.debug('⚠️ Missing initial date/time for new clothing');
+      this.logger.debug('Missing initial date/time for new clothing');
       return 'programmed';
     }
 
@@ -438,7 +436,7 @@ export class ClothingStatusService {
     const initialBrazilTime = toZonedTime(initialDateTime, timeZone);
     const status = now >= initialBrazilTime ? 'active' : 'programmed';
 
-    this.logger.log(`🆕 New clothing initial status: ${status}`);
+    this.logger.log(`New clothing initial status: ${status}`);
     this.logger.log(`Now (Brazil): ${this.formatBrazilianTime(now)}`);
     this.logger.log(
       `Initial (Brazil): ${this.formatBrazilianTime(initialDateTime)}`,
@@ -473,11 +471,11 @@ export class ClothingStatusService {
         // A lógica de envio de email agora está no handleEndedStatus
         // Este método será chamado no próximo ciclo
         this.logger.log(
-          `📝 Clothing ${auction.id} marked as ended, will process in next cycle`,
+          `Clothing ${auction.id} marked as ended, will process in next cycle`,
         );
       } catch (error) {
         this.logger.error(
-          `❌ Erro ao marcar leilão finalizado ${auction.id}:`,
+          `Erro ao marcar leilão finalizado ${auction.id}:`,
           error,
         );
       }

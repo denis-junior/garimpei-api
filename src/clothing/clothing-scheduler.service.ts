@@ -9,19 +9,19 @@ export class ClothingSchedulerService {
   constructor(private readonly clothingStatusService: ClothingStatusService) {}
 
   /**
-   * Executa a cada minuto para verificar mudanças de status
+   * Executa a cada 5 minutos para verificar mudanças de status
    */
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron(CronExpression.EVERY_5_MINUTES)
   async handleClothingStatusUpdate(): Promise<void> {
-    this.logger.log('🕐 Starting scheduled clothing status update...');
+    this.logger.log('Starting scheduled clothing status update...');
     const startTime = Date.now();
 
     try {
       await this.clothingStatusService.updateClothingStatuses();
       const duration = Date.now() - startTime;
-      this.logger.log(`✅ Clothing status update completed in ${duration}ms`);
+      this.logger.log(`Clothing status update completed in ${duration}ms`);
     } catch (error) {
-      this.logger.error('❌ Error in scheduled clothing status update:', error);
+      this.logger.error('Error in scheduled clothing status update:', error);
     }
   }
 }
