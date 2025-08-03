@@ -234,20 +234,33 @@ export class ClothingService {
   async manageFindAll(
     page = 1,
     limit = 10,
+    sellerId: number, // Novo parâmetro obrigatório
     searchDto?: ClothingSearchDto,
   ): Promise<{ items: Clothing[]; lastPage: boolean }> {
     let query = this.clothingRepository
       .createQueryBuilder('clothing')
       .leftJoinAndSelect('clothing.store', 'store')
+      .leftJoinAndSelect('store.seller', 'seller')
       .leftJoinAndSelect('clothing.bids', 'bids')
       .leftJoinAndSelect('bids.buyer', 'buyer')
       .leftJoinAndSelect('clothing.images', 'images')
-      .select(['clothing', 'store.name', 'bids', 'buyer', 'images']);
+      .select([
+        'clothing',
+        'store.name',
+        'seller.id',
+        'bids',
+        'buyer',
+        'images',
+      ]);
 
-    // console.log('Filters:', searchDto);
+    // FILTRO OBRIGATÓRIO: apenas roupas das lojas do seller
+    query = query.andWhere('seller.id = :sellerId', { sellerId });
 
-    // Aplicar filtros
+    // console.log('🔍 Filtering by sellerId:', sellerId);
+
+    // Aplicar outros filtros
     if (searchDto?.status) {
+      // console.log('🔍 Applying status filter:', searchDto.status);
       query = query.andWhere('clothing.status = :status', {
         status: searchDto.status,
       });
@@ -294,17 +307,22 @@ export class ClothingService {
 
       if (searchTerm.length >= 2) {
         const escapedSearch = searchTerm
-          .replace(/[%_\\]/g, '\\$&') // Escapa caracteres especiais
+          .replace(/[%_\\]/g, '\\$&')
           .toLowerCase();
 
-        query = query.andWhere(
-          '(LOWER(clothing.name) LIKE :search OR LOWER(clothing.description) LIKE :search)',
-          { search: `%${escapedSearch}%` },
-        );
+        // Buscar apenas no nome (como resolvemos antes)
+        query = query.andWhere('LOWER(clothing.name) LIKE :search', {
+          search: `%${escapedSearch}%`,
+        });
       }
     }
 
+    // Debug da query final
+    // console.log('🔍 Final SQL:', query.getSql());
+    // console.log('🔍 Parameters:', query.getParameters());
+
     const clothings = await query.getMany();
+    // console.log('🔍 Total results for seller:', clothings.length);
 
     const start = (page - 1) * limit;
     const end = start + limit;

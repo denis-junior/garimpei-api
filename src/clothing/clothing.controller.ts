@@ -12,6 +12,7 @@ import {
   UploadedFiles,
   Req,
   Query,
+  ForbiddenException,
 } from '@nestjs/common';
 import { CreateClothingDto } from './dto/create-clothing.dto';
 import { UpdateClothingDto } from './dto/update-clothing.dto';
@@ -49,12 +50,14 @@ export class ClothingController {
     @Query('page') page = 1,
     @Query('limit') limit = 10,
   ) {
+    console.log('Request user:', req.user);
     if (req?.user?.seller) {
       return this.clothingService.findAllPerUser(req.user.userId);
     }
     return this.clothingService.findAll(Number(page), Number(limit));
   }
 
+  @UseGuards(AuthGuard('jwt'))
   @Get('manage')
   manageFindAll(
     @Req() req: IRequestWithUser,
@@ -62,10 +65,17 @@ export class ClothingController {
     @Query('limit') limit = 10,
     @Query() searchDto: ClothingSearchDto,
   ) {
-    // Busca padrão com filtros opcionais
+    // Verificar se o usuário é um seller
+    if (!req.user?.seller) {
+      throw new ForbiddenException('Only sellers can access this endpoint');
+    }
+
+    // console.log('🔍 Authenticated seller:', req.user.seller);
+
     return this.clothingService.manageFindAll(
       Number(page),
       Number(limit),
+      req.user.userId,
       searchDto,
     );
   }
