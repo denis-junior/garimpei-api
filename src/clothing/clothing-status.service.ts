@@ -448,14 +448,14 @@ export class ClothingStatusService {
   /**
    * Envia emails para leilões que foram finalizados
    */
-  private async sendAuctionEndEmails(
+  private sendAuctionEndEmails(
     updates: Array<{
       id: number;
       status: ClothingStatus;
       oldStatus: ClothingStatus;
       clothing?: Clothing;
     }>,
-  ): Promise<void> {
+  ): void {
     // Filtra apenas os leilões que mudaram para 'ended' e têm bids
     const endedAuctions = updates.filter(
       (update) =>

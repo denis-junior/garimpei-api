@@ -10,6 +10,7 @@ import { Store } from '../store/store.entity';
 import { CreateClothingDto } from './dto/create-clothing.dto';
 import { UpdateClothingDto } from './dto/update-clothing.dto';
 import { ClothingStatusService } from './clothing-status.service';
+import { ClothingSearchDto } from './dto/clothing-search.dto';
 
 @Injectable()
 export class ClothingService {
@@ -184,20 +185,6 @@ export class ClothingService {
     return clothings;
   }
 
-  // async findAllPerUser(id: number): Promise<Clothing[]> {
-  //   const stores = await this.storeRepository.find({
-  //     where: { seller: { id: id } },
-  //     relations: ['clothings'],
-  //   });
-  //   console.log('stores', stores);
-  //   const clothings = stores.flatMap((store) => store.clothings);
-  //   // const clothings = await this.clothingRepository.find({
-  //   //   where: { id },
-  //   //   relations: ['store', 'bids', 'bids.buyer', 'images'],
-  //   // });
-  //   return clothings;
-  // }
-
   async findOne(id: number): Promise<Clothing> {
     const clothing = await this.clothingRepository.findOne({
       where: { id },
@@ -242,5 +229,91 @@ export class ClothingService {
 
   async remove(id: number): Promise<void> {
     await this.clothingRepository.delete(id);
+  }
+
+  async manageFindAll(
+    page = 1,
+    limit = 10,
+    searchDto?: ClothingSearchDto,
+  ): Promise<{ items: Clothing[]; lastPage: boolean }> {
+    let query = this.clothingRepository
+      .createQueryBuilder('clothing')
+      .leftJoinAndSelect('clothing.store', 'store')
+      .leftJoinAndSelect('clothing.bids', 'bids')
+      .leftJoinAndSelect('bids.buyer', 'buyer')
+      .leftJoinAndSelect('clothing.images', 'images')
+      .select(['clothing', 'store.name', 'bids', 'buyer', 'images']);
+
+    // console.log('Filters:', searchDto);
+
+    // Aplicar filtros
+    if (searchDto?.status) {
+      query = query.andWhere('clothing.status = :status', {
+        status: searchDto.status,
+      });
+    }
+
+    if (searchDto?.minBid) {
+      query = query.andWhere('clothing.initial_bid >= :minBid', {
+        minBid: searchDto.minBid,
+      });
+    }
+
+    if (searchDto?.maxBid) {
+      query = query.andWhere('clothing.initial_bid <= :maxBid', {
+        maxBid: searchDto.maxBid,
+      });
+    }
+
+    if (searchDto?.size) {
+      query = query.andWhere('clothing.size = :size', {
+        size: searchDto.size,
+      });
+    }
+
+    if (searchDto?.storeId) {
+      query = query.andWhere('clothing.storeId = :storeId', {
+        storeId: searchDto.storeId,
+      });
+    }
+
+    if (searchDto?.initialDate) {
+      query = query.andWhere('clothing.initial_date >= :initialDate', {
+        initialDate: searchDto.initialDate,
+      });
+    }
+
+    if (searchDto?.finalDate) {
+      query = query.andWhere('clothing.end_date <= :finalDate', {
+        finalDate: searchDto.finalDate,
+      });
+    }
+
+    if (searchDto?.querySearch) {
+      const searchTerm = searchDto.querySearch.trim();
+
+      if (searchTerm.length >= 2) {
+        const escapedSearch = searchTerm
+          .replace(/[%_\\]/g, '\\$&') // Escapa caracteres especiais
+          .toLowerCase();
+
+        query = query.andWhere(
+          '(LOWER(clothing.name) LIKE :search OR LOWER(clothing.description) LIKE :search)',
+          { search: `%${escapedSearch}%` },
+        );
+      }
+    }
+
+    const clothings = await query.getMany();
+
+    const start = (page - 1) * limit;
+    const end = start + limit;
+    const items = clothings.slice(start, end);
+    const lastPage = end >= clothings.length;
+
+    return {
+      items,
+      lastPage,
+    };
   }
 }

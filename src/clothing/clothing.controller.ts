@@ -24,6 +24,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { IRequestWithUser } from 'src/interfaces';
 import { ClothingService } from './clothing.service';
 import { ClothingStatusService } from './clothing-status.service';
+import { ClothingSearchDto } from './dto/clothing-search.dto';
 
 @Controller('clothing')
 export class ClothingController {
@@ -52,6 +53,21 @@ export class ClothingController {
       return this.clothingService.findAllPerUser(req.user.userId);
     }
     return this.clothingService.findAll(Number(page), Number(limit));
+  }
+
+  @Get('manage')
+  manageFindAll(
+    @Req() req: IRequestWithUser,
+    @Query('page') page = 1,
+    @Query('limit') limit = 10,
+    @Query() searchDto: ClothingSearchDto,
+  ) {
+    // Busca padrão com filtros opcionais
+    return this.clothingService.manageFindAll(
+      Number(page),
+      Number(limit),
+      searchDto,
+    );
   }
 
   @UseGuards(AuthGuard('jwt'))
