@@ -7,10 +7,16 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Clothing, ClothingStatus } from './clothing.entity';
 import { Store } from '../store/store.entity';
+import { Bid } from '../bid/bid.entity';
 import { CreateClothingDto } from './dto/create-clothing.dto';
 import { UpdateClothingDto } from './dto/update-clothing.dto';
 import { ClothingStatusService } from './clothing-status.service';
 import { ClothingSearchDto } from './dto/clothing-search.dto';
+
+// Tipo para incluir informações do bid vencedor atual
+export type ClothingWithCurrentWinner = Clothing & {
+  currentWinnerBid: Bid | null;
+};
 
 @Injectable()
 export class ClothingService {
@@ -236,7 +242,7 @@ export class ClothingService {
     limit = 10,
     sellerId: number, // Novo parâmetro obrigatório
     searchDto?: ClothingSearchDto,
-  ): Promise<{ items: Clothing[]; lastPage: boolean }> {
+  ): Promise<{ items: ClothingWithCurrentWinner[]; lastPage: boolean }> {
     let query = this.clothingRepository
       .createQueryBuilder('clothing')
       .leftJoinAndSelect('clothing.store', 'store')
@@ -244,6 +250,12 @@ export class ClothingService {
       .leftJoinAndSelect('clothing.bids', 'bids')
       .leftJoinAndSelect('bids.buyer', 'buyer')
       .leftJoinAndSelect('clothing.images', 'images')
+      .leftJoin(
+        'clothing.bids',
+        'currentWinnerBid',
+        'currentWinnerBid.id = clothing.current_winner_bid_id',
+      )
+      .leftJoinAndSelect('currentWinnerBid.buyer', 'currentWinnerBuyer')
       .select([
         'clothing',
         'store.name',
@@ -251,6 +263,8 @@ export class ClothingService {
         'bids',
         'buyer',
         'images',
+        'currentWinnerBid',
+        'currentWinnerBuyer',
       ]);
 
     // FILTRO OBRIGATÓRIO: apenas roupas das lojas do seller
@@ -324,10 +338,22 @@ export class ClothingService {
     const clothings = await query.getMany();
     // console.log('🔍 Total results for seller:', clothings.length);
 
+    // Processar para incluir informações do bid vencedor atual
+    const processedClothings = clothings.map((clothing) => {
+      const currentWinnerBid = clothing.current_winner_bid_id
+        ? clothing.bids.find((bid) => bid.id === clothing.current_winner_bid_id)
+        : null;
+
+      return {
+        ...clothing,
+        currentWinnerBid: currentWinnerBid || null,
+      };
+    });
+
     const start = (page - 1) * limit;
     const end = start + limit;
-    const items = clothings.slice(start, end);
-    const lastPage = end >= clothings.length;
+    const items = processedClothings.slice(start, end);
+    const lastPage = end >= processedClothings.length;
 
     return {
       items,
