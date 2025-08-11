@@ -67,7 +67,9 @@ export class ClothingController {
   ) {
     // Verificar se o usuário é um seller
     if (!req.user?.seller) {
-      throw new ForbiddenException('Only sellers can access this endpoint');
+      throw new ForbiddenException(
+        'Somente vendedores podem acessar esta rota',
+      );
     }
 
     // console.log('🔍 Authenticated seller:', req.user.seller);
@@ -253,14 +255,14 @@ export class ClothingController {
     const clothing = await this.clothingService.findOne(+id);
 
     if (clothing.status !== 'waiting_payment') {
-      return { success: false, message: 'Clothing is not waiting for payment' };
+      throw new ForbiddenException('Peça não está aguardando pagamento');
     }
 
     await this.clothingService.update(+id, { status: 'paid' });
 
     return {
       success: true,
-      message: `Clothing ${id} marked as paid`,
+      message: `Peça ${id} marcada como paga`,
     };
   }
 
@@ -269,7 +271,7 @@ export class ClothingController {
     const clothing = await this.clothingService.findOne(+id);
 
     if (clothing.status !== 'waiting_payment') {
-      return { success: false, message: 'Clothing is not waiting for payment' };
+      throw new ForbiddenException('Peça não está aguardando pagamento');
     }
 
     // Forçar processamento do próximo lance
@@ -277,7 +279,7 @@ export class ClothingController {
 
     return {
       success: true,
-      message: `Next bidder process initiated for clothing ${id}`,
+      message: `Processo do próximo lance iniciado para a peça ${id}`,
     };
   }
 }
