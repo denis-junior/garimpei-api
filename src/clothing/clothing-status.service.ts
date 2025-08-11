@@ -5,6 +5,7 @@ import { Clothing, ClothingStatus } from './clothing.entity';
 import { EmailService } from '../email/email.service';
 import { toZonedTime, format } from 'date-fns-tz';
 import { parseISO } from 'date-fns';
+import { Bid } from 'src/bid/bid.entity';
 
 @Injectable()
 export class ClothingStatusService {
@@ -59,7 +60,7 @@ export class ClothingStatusService {
       // Executar atualizações em batch
       if (updates.length > 0) {
         await this.batchUpdateStatuses(updates);
-        await this.sendAuctionEndEmails(updates);
+        this.sendAuctionEndEmails(updates);
         this.logger.log(
           `✨ Successfully updated ${updates.length} clothing statuses`,
         );
@@ -129,7 +130,7 @@ export class ClothingStatusService {
       // Atualizar status para 'auctioned' e registrar timestamps
       await this.clothingRepository.update(clothing.id, {
         status: 'auctioned',
-        auctioned_at: new Date(),
+        auctioned_at: this.getBrazilianTime(),
         current_winner_bid_id: winningBid.id,
       });
 
@@ -214,7 +215,7 @@ export class ClothingStatusService {
 
       // Registrar que o aviso foi enviado
       await this.clothingRepository.update(clothing.id, {
-        payment_warning_sent_at: new Date(),
+        payment_warning_sent_at: this.getBrazilianTime(),
       });
 
       this.logger.log(
@@ -263,7 +264,7 @@ export class ClothingStatusService {
         status: 'auctioned',
         auction_attempt: nextAttempt,
         current_winner_bid_id: nextWinningBid.id,
-        auctioned_at: new Date(),
+        auctioned_at: this.getBrazilianTime(),
         payment_warning_sent_at: null,
       });
 
@@ -281,7 +282,10 @@ export class ClothingStatusService {
   /**
    * Encontra o lance vencedor baseado na tentativa atual
    */
-  private findWinningBid(clothing: Clothing, attemptNumber: number): any {
+  private findWinningBid(
+    clothing: Clothing,
+    attemptNumber: number,
+  ): Bid | null {
     if (!clothing.bids || clothing.bids.length === 0) return null;
 
     // Ordenar bids por valor decrescente
@@ -310,9 +314,6 @@ export class ClothingStatusService {
     return format(zonedDate, 'dd/MM/yyyy HH:mm:ss', { timeZone });
   }
 
-  /**
-   * Calcula o status correto baseado nas datas
-   */
   private calculateClothingStatus(clothing: Clothing, now: Date): string {
     if (!clothing.initial_date || !clothing.initial_time) {
       this.logger.debug(
@@ -321,7 +322,6 @@ export class ClothingStatusService {
       return 'programmed';
     }
 
-    // Criar as datas assumindo que estão no fuso brasileiro
     const timeZone = 'America/Sao_Paulo';
 
     const initialDateTimeString = `${clothing.initial_date}T${clothing.initial_time}`;
