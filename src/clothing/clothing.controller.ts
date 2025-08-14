@@ -26,6 +26,7 @@ import { IRequestWithUser } from 'src/interfaces';
 import { ClothingService } from './clothing.service';
 import { ClothingStatusService } from './clothing-status.service';
 import { ClothingSearchDto } from './dto/clothing-search.dto';
+import { OptionalJwtAuthGuard } from 'src/auth/optional-jwt-auth.guard';
 
 @Controller('clothing')
 export class ClothingController {
@@ -45,6 +46,7 @@ export class ClothingController {
   }
 
   @Get()
+  @UseGuards(OptionalJwtAuthGuard)
   findAll(
     @Req() req: IRequestWithUser,
     @Query('page') page = 1,
