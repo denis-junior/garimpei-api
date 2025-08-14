@@ -50,11 +50,18 @@ export class BidService {
     }
 
     const deadlineString = `${clothing.end_date}T${clothing.end_time}`;
+    const initialAuctionString = `${clothing.initial_date}T${clothing.initial_time}`;
     const deadline = new Date(deadlineString);
+    const initialAuction = new Date(initialAuctionString);
 
     if (new Date() > deadline) {
       throw new ForbiddenException(
         'O prazo para dar lances nesta peça expirou.',
+      );
+    }
+    if (new Date() < initialAuction) {
+      throw new ForbiddenException(
+        'O prazo para dar lances nesta peça ainda não começou.',
       );
     }
 
