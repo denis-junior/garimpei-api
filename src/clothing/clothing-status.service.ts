@@ -6,6 +6,7 @@ import { EmailService } from '../email/email.service';
 import { toZonedTime, format } from 'date-fns-tz';
 import { parseISO } from 'date-fns';
 import { Bid } from 'src/bid/bid.entity';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class ClothingStatusService {
@@ -15,6 +16,7 @@ export class ClothingStatusService {
     @InjectRepository(Clothing)
     private clothingRepository: Repository<Clothing>,
     private emailService: EmailService,
+    private configService: ConfigService,
   ) {}
 
   /**
@@ -78,12 +80,12 @@ export class ClothingStatusService {
     clothing: Clothing,
     now: Date,
   ): Promise<void> {
-    // const oneHour = 60 * 60 * 1000; // 1 hora em ms
-    // const oneDay = 24 * 60 * 60 * 1000; // 1 dia em ms
-    // const twoDays = 2 * 24 * 60 * 60 * 1000; // 2 dias em ms
-    const oneHour = 5 * 60 * 1000; // 5 minutos em ms (para teste)
-    const oneDay = 10 * 60 * 1000; // 10 minutos em ms (para teste)
-    const twoDays = 15 * 60 * 1000; // 15 minutos em ms (para teste)
+    const hour =
+      this.configService.get<number>('AUCTION_HOUR_TEST') * 60 * 1000;
+    const day =
+      this.configService.get<number>('AUCTION_DAY_TEST') * 60 * 60 * 1000;
+    const days =
+      this.configService.get<number>('AUCTION_DAYS_TEST') * 24 * 60 * 60 * 1000;
 
     switch (clothing.status) {
       case 'ended':
@@ -91,11 +93,11 @@ export class ClothingStatusService {
         break;
 
       case 'auctioned':
-        await this.handleAuctionedStatus(clothing, now, oneHour);
+        await this.handleAuctionedStatus(clothing, now, hour);
         break;
 
       case 'waiting_payment':
-        await this.handleWaitingPaymentStatus(clothing, now, oneDay, twoDays);
+        await this.handleWaitingPaymentStatus(clothing, now, day, days);
         break;
     }
   }
@@ -151,13 +153,13 @@ export class ClothingStatusService {
   private async handleAuctionedStatus(
     clothing: Clothing,
     now: Date,
-    oneHour: number,
+    hour: number,
   ): Promise<void> {
     if (!clothing.auctioned_at) return;
 
     const timeSinceAuctioned = now.getTime() - clothing.auctioned_at.getTime();
 
-    if (timeSinceAuctioned >= oneHour) {
+    if (timeSinceAuctioned >= hour) {
       await this.clothingRepository.update(clothing.id, {
         status: 'waiting_payment',
       });
@@ -174,20 +176,20 @@ export class ClothingStatusService {
   private async handleWaitingPaymentStatus(
     clothing: Clothing,
     now: Date,
-    oneDay: number,
-    twoDays: number,
+    day: number,
+    days: number,
   ): Promise<void> {
     if (!clothing.auctioned_at) return;
 
     const timeSinceAuctioned = now.getTime() - clothing.auctioned_at.getTime();
 
     // Após 1 dia: enviar aviso para o seller (uma única vez)
-    if (timeSinceAuctioned >= oneDay && !clothing.payment_warning_sent_at) {
+    if (timeSinceAuctioned >= day && !clothing.payment_warning_sent_at) {
       await this.sendPaymentWarningToSeller(clothing);
     }
 
     // Após 2 dias: passar para o próximo lance
-    if (timeSinceAuctioned >= twoDays) {
+    if (timeSinceAuctioned >= days) {
       await this.processNextBidder(clothing);
     }
   }
