@@ -15,6 +15,7 @@ import { UpdateStoreDto } from './dto/update-store.dto';
 import { Store } from './store.entity';
 import { AuthGuard } from '@nestjs/passport';
 import { IRequestWithUser } from 'src/interfaces';
+import { OptionalJwtAuthGuard } from 'src/auth/optional-jwt-auth.guard';
 
 @Controller('stores')
 export class StoreController {
@@ -39,8 +40,13 @@ export class StoreController {
     return this.storeService.findAll();
   }
 
+  @UseGuards(OptionalJwtAuthGuard)
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id') id: string, @Req() req: IRequestWithUser) {
+    console.log('Usuário autenticado:', req.user);
+    if (req.user && req.user.seller) {
+      return this.storeService.findOneSeller(+id);
+    }
     return this.storeService.findOne(+id);
   }
 

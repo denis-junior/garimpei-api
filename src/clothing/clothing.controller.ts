@@ -45,8 +45,8 @@ export class ClothingController {
     return this.clothingService.create(dto);
   }
 
-  @Get()
   @UseGuards(OptionalJwtAuthGuard)
+  @Get()
   findAll(
     @Req() req: IRequestWithUser,
     @Query('page') page = 1,
@@ -54,7 +54,11 @@ export class ClothingController {
   ) {
     console.log('Request user:', req.user);
     if (req?.user?.seller) {
-      return this.clothingService.findAllPerUser(req.user.userId);
+      return this.clothingService.findAllPerUser(
+        req.user.userId,
+        Number(page),
+        Number(limit),
+      );
     }
     return this.clothingService.findAll(Number(page), Number(limit));
   }

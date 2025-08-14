@@ -4,6 +4,7 @@ import { Store } from './store.entity';
 import { Repository } from 'typeorm';
 import { CreateStoreDto } from './dto/create-store.dto';
 import { UpdateStoreDto } from './dto/update-store.dto';
+import { ClothingStatus } from 'src/clothing/clothing.entity';
 
 @Injectable()
 export class StoreService {
@@ -33,13 +34,24 @@ export class StoreService {
     return stores;
   }
 
-  async findOne(id: number): Promise<Store> {
+  async findOneSeller(id: number): Promise<Store> {
     const store = await this.storeRepository.findOne({
       where: { id },
       relations: ['seller', 'clothings', 'clothings.images', 'clothings.bids'],
     });
     if (!store) {
-      throw new NotFoundException(`Store with id ${id} not found`);
+      throw new NotFoundException(`Loja com id ${id} não encontrada`);
+    }
+    console.log('Store found for seller:', store);
+    return store;
+  }
+  async findOne(id: number): Promise<Store> {
+    const store = await this.storeRepository.findOne({
+      where: { id, clothings: { status: 'active' as ClothingStatus } },
+      relations: ['seller', 'clothings', 'clothings.images', 'clothings.bids'],
+    });
+    if (!store) {
+      throw new NotFoundException(`Loja com id ${id} não encontrada`);
     }
     return store;
   }

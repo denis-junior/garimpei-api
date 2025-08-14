@@ -66,29 +66,17 @@ export class ClothingService {
     page = 1,
     limit = 10,
   ): Promise<{ items: Clothing[]; lastPage: boolean }> {
-    const now = new Date();
-    const nowISOString = now.toISOString().slice(0, 19).replace('T', ' '); // 'YYYY-MM-DD HH:mm:ss'
-    console.log('NOW:', nowISOString);
-
-    const clothings = await this.clothingRepository
-      .createQueryBuilder('clothing')
-      .leftJoinAndSelect('clothing.store', 'store')
-      .leftJoinAndSelect('clothing.bids', 'bids')
-      .leftJoinAndSelect('bids.buyer', 'buyer')
-      .leftJoinAndSelect('clothing.images', 'images')
-      .select(['clothing', 'store.name', 'bids', 'buyer', 'images'])
-      .getMany();
-
-    const filtered = clothings.filter((c) => {
-      if (!c.end_date || !c.end_time) return false;
-      const endDateTime = new Date(`${c.end_date}T${c.end_time}`);
-      return endDateTime.getTime() > now.getTime();
+    const clothings = await this.clothingRepository.find({
+      relations: ['store', 'bids', 'bids.buyer', 'images'],
+      where: {
+        status: 'active' as ClothingStatus,
+      },
     });
 
     const start = (page - 1) * limit;
     const end = start + limit;
-    const items = filtered.slice(start, end);
-    const lastPage = end >= filtered.length;
+    const items = clothings.slice(start, end);
+    const lastPage = end >= clothings.length;
 
     return {
       items,
@@ -171,7 +159,11 @@ export class ClothingService {
       .filter((c): c is Clothing => c !== null);
   }
 
-  async findAllPerUser(sellerId: number): Promise<Clothing[]> {
+  async findAllPerUser(
+    sellerId: number,
+    page = 1,
+    limit = 10,
+  ): Promise<{ items: Clothing[]; lastPage: boolean }> {
     const clothings = await this.clothingRepository.find({
       relations: ['store', 'bids', 'bids.buyer', 'images'],
       where: {
@@ -180,9 +172,19 @@ export class ClothingService {
             id: sellerId,
           },
         },
+        status: 'active' as ClothingStatus,
       },
     });
-    return clothings;
+
+    const start = (page - 1) * limit;
+    const end = start + limit;
+    const items = clothings.slice(start, end);
+    const lastPage = end >= clothings.length;
+
+    return {
+      items,
+      lastPage,
+    };
   }
 
   async findOne(id: number): Promise<Clothing> {
