@@ -31,6 +31,7 @@ export class StoreController {
     return this.storeService.create(createStoreDto, Number(idSeller));
   }
 
+  @UseGuards(OptionalJwtAuthGuard)
   @Get()
   findAll(@Req() req: IRequestWithUser): Promise<Store[] | Store> {
     console.log('Usuário autenticado:', req.user);
