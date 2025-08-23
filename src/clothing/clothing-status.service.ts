@@ -1,12 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Not, Repository } from 'typeorm';
 import { Clothing, ClothingStatus } from './clothing.entity';
 import { EmailService } from '../email/email.service';
 import { toZonedTime, format } from 'date-fns-tz';
 import { parseISO } from 'date-fns';
 import { Bid } from 'src/bid/bid.entity';
 import { ConfigService } from '@nestjs/config';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
 
 @Injectable()
 export class ClothingStatusService {
@@ -17,6 +18,7 @@ export class ClothingStatusService {
     private clothingRepository: Repository<Clothing>,
     private emailService: EmailService,
     private configService: ConfigService,
+    private whatsappService: WhatsAppService,
   ) {}
 
   /**
@@ -28,6 +30,7 @@ export class ClothingStatusService {
 
       const clothings = await this.clothingRepository.find({
         relations: ['bids', 'bids.buyer', 'store', 'store.seller'],
+        where: [{ status: Not('disabled') }],
       });
 
       this.logger.log(`Found ${clothings.length} clothings to check`);
@@ -82,10 +85,9 @@ export class ClothingStatusService {
   ): Promise<void> {
     const hour =
       this.configService.get<number>('AUCTION_HOUR_TEST') * 60 * 1000;
-    const day =
-      this.configService.get<number>('AUCTION_DAY_TEST') * 60 * 60 * 1000;
+    const day = this.configService.get<number>('AUCTION_DAY_TEST') * 60 * 1000;
     const days =
-      this.configService.get<number>('AUCTION_DAYS_TEST') * 24 * 60 * 60 * 1000;
+      this.configService.get<number>('AUCTION_DAYS_TEST') * 60 * 1000;
 
     switch (clothing.status) {
       case 'ended':
@@ -103,7 +105,7 @@ export class ClothingStatusService {
   }
 
   /**
-   * Lida com clothings no status 'ended' - verifica se tem bids e envia email
+   * Lida com clothings no status 'ended' - verifica se tem bids e envia email + WhatsApp
    */
   private async handleEndedStatus(clothing: Clothing): Promise<void> {
     if (!clothing.bids || clothing.bids.length === 0) {
@@ -129,6 +131,18 @@ export class ClothingStatusService {
         auctionEndTime: clothing.end_time || '',
       });
 
+      // Enviar WhatsApp para o vencedor
+      if (winningBid.buyer.contact) {
+        await this.whatsappService.sendAuctionWinnerNotification({
+          winnerName: winningBid.buyer.name,
+          winnerPhone: winningBid.buyer.contact,
+          clothingTitle: clothing.name,
+          winningBid: Number(winningBid.bid),
+          auctionEndDate: clothing.end_date || '',
+          auctionEndTime: clothing.end_time || '',
+        });
+      }
+
       // Atualizar status para 'auctioned' e registrar timestamps
       await this.clothingRepository.update(clothing.id, {
         status: 'auctioned',
@@ -137,7 +151,7 @@ export class ClothingStatusService {
       });
 
       this.logger.log(
-        `Clothing ${clothing.id} moved to 'auctioned' - Email sent to ${winningBid.buyer.email}`,
+        `Clothing ${clothing.id} moved to 'auctioned' - Email and WhatsApp sent to ${winningBid.buyer.email}`,
       );
     } catch (error) {
       this.logger.error(
@@ -204,6 +218,7 @@ export class ClothingStatusService {
       );
       if (!winningBid || !clothing.store?.seller) return;
 
+      // Enviar email
       await this.emailService.sendPaymentWarningToSeller({
         seller: {
           name: clothing.store.seller.name,
@@ -215,13 +230,25 @@ export class ClothingStatusService {
         daysWaiting: 1,
       });
 
+      // Enviar WhatsApp
+      if (clothing.store.seller.contact) {
+        await this.whatsappService.sendPaymentWarningToSeller({
+          sellerName: clothing.store.seller.name,
+          sellerPhone: clothing.store.seller.contact,
+          clothingTitle: clothing.name,
+          winnerName: winningBid.buyer.name,
+          winningBid: Number(winningBid.bid),
+          daysWaiting: 1,
+        });
+      }
+
       // Registrar que o aviso foi enviado
       await this.clothingRepository.update(clothing.id, {
         payment_warning_sent_at: this.getBrazilianTime(),
       });
 
       this.logger.log(
-        `Payment warning sent to seller for clothing ${clothing.id}`,
+        `Payment warning sent to seller (email + WhatsApp) for clothing ${clothing.id}`,
       );
     } catch (error) {
       this.logger.error(
@@ -261,6 +288,17 @@ export class ClothingStatusService {
         attemptNumber: nextAttempt + 1,
       });
 
+      // Enviar WhatsApp de segunda chance
+      if (nextWinningBid.buyer.contact) {
+        await this.whatsappService.sendSecondChanceNotification({
+          winnerName: nextWinningBid.buyer.name,
+          winnerPhone: nextWinningBid.buyer.contact,
+          clothingTitle: clothing.name,
+          winningBid: Number(nextWinningBid.bid),
+          attemptNumber: nextAttempt + 1,
+        });
+      }
+
       // Resetar o processo para o novo vencedor
       await this.clothingRepository.update(clothing.id, {
         status: 'auctioned',
@@ -271,7 +309,7 @@ export class ClothingStatusService {
       });
 
       this.logger.log(
-        `Clothing ${clothing.id} started second chance with attempt #${nextAttempt + 1} - Email sent to ${nextWinningBid.buyer.email}`,
+        `Clothing ${clothing.id} started second chance with attempt #${nextAttempt + 1} - Email and WhatsApp sent to ${nextWinningBid.buyer.email}`,
       );
     } catch (error) {
       this.logger.error(
@@ -419,7 +457,7 @@ export class ClothingStatusService {
   /**
    * Determina o status inicial no momento da criação
    */
-  getInitialStatus(initialDate: string, initialTime: string): string {
+  public getInitialStatus(initialDate: string, initialTime: string): string {
     if (!initialDate || !initialTime) {
       this.logger.debug('Missing initial date/time for new clothing');
       return 'programmed';
@@ -482,5 +520,64 @@ export class ClothingStatusService {
         );
       }
     }
+  }
+
+  /**
+   * Valida se as datas/horas são válidas
+   */
+  public validateClothingDates(
+    initialDate: string,
+    initialTime: string,
+    endDate?: string,
+    endTime?: string,
+  ): { isValid: boolean; errors: string[] } {
+    const errors: string[] = [];
+
+    if (!initialDate || !initialTime) {
+      errors.push('Data e hora inicial são obrigatórias');
+      return { isValid: false, errors };
+    }
+
+    const timeZone = 'America/Sao_Paulo';
+    const now = toZonedTime(new Date(), timeZone);
+
+    try {
+      const initialDateTime = toZonedTime(
+        parseISO(`${initialDate}T${initialTime}`),
+        timeZone,
+      );
+
+      // Validar se a data inicial não é muito no passado (mais de 1 hora atrás)
+      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+      if (initialDateTime < oneHourAgo) {
+        errors.push('Data/hora inicial não pode ser muito no passado');
+      }
+
+      // Se há data/hora final, validar
+      if (endDate && endTime) {
+        const endDateTime = toZonedTime(
+          parseISO(`${endDate}T${endTime}`),
+          timeZone,
+        );
+
+        // Data final deve ser posterior à inicial
+        if (endDateTime <= initialDateTime) {
+          errors.push('Data/hora final deve ser posterior à data/hora inicial');
+        }
+
+        // Data final não pode ser muito distante (ex: mais de 30 dias)
+        const thirtyDaysFromNow = new Date(
+          now.getTime() + 30 * 24 * 60 * 60 * 1000,
+        );
+        if (endDateTime > thirtyDaysFromNow) {
+          errors.push('Data/hora final não pode ser superior a 30 dias');
+        }
+      }
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (error) {
+      errors.push('Formato de data/hora inválido');
+    }
+
+    return { isValid: errors.length === 0, errors };
   }
 }

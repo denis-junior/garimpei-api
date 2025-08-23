@@ -8,16 +8,22 @@ import { Image } from '../image/image.entity';
 import { ClothingStatusService } from './clothing-status.service';
 import { ClothingSchedulerService } from './clothing-scheduler.service';
 import { EmailModule } from '../email/email.module';
-import { BlobModule } from '../blob/blob.module'; // Importe o módulo do BlobService
+import { BlobModule } from '../blob/blob.module';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Clothing, Store, Image]), // Adicione Image aqui
+    TypeOrmModule.forFeature([Clothing, Store, Image]),
     EmailModule,
-    BlobModule, // Adicione o BlobModule aqui
+    BlobModule,
   ],
   controllers: [ClothingController],
-  providers: [ClothingService, ClothingStatusService, ClothingSchedulerService],
+  providers: [
+    ClothingService,
+    ClothingStatusService,
+    ClothingSchedulerService,
+    WhatsAppService,
+  ],
   exports: [ClothingService, ClothingStatusService],
 })
 export class ClothingModule {}

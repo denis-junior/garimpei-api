@@ -18,8 +18,8 @@ export class ClothingSchedulerService {
    * Executa a cada 5 minutos para verificar mudanças de status
    */
 
-  // @Cron(CronExpression.EVERY_MINUTE)
-  @Cron(CronExpression.EVERY_5_MINUTES)
+  @Cron(CronExpression.EVERY_MINUTE)
+  // @Cron(CronExpression.EVERY_5_MINUTES)
   async handleClothingStatusUpdate(): Promise<void> {
     this.logger.log('Starting scheduled clothing status update...');
     const startTime = this.getBrazilianTime();

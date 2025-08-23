@@ -12,6 +12,7 @@ import { Image } from '../image/image.entity';
 export type ClothingStatus =
   | 'programmed'
   | 'active'
+  | 'disabled'
   | 'ended'
   | 'auctioned'
   | 'paid'
@@ -52,6 +53,7 @@ export class Clothing {
     enum: [
       'programmed',
       'active',
+      'disabled',
       'ended',
       'auctioned',
       'waiting_payment',

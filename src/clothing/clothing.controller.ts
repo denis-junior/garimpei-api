@@ -13,6 +13,7 @@ import {
   Req,
   Query,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { CreateClothingDto } from './dto/create-clothing.dto';
 import { UpdateClothingDto } from './dto/update-clothing.dto';
@@ -113,16 +114,47 @@ export class ClothingController {
     @UploadedFiles() files: Express.Multer.File[],
     @Body() body: CreateClothingDto,
   ) {
+    // Validações antes de iniciar a transação
+    if (!files || files.length === 0) {
+      throw new BadRequestException('Pelo menos uma imagem é obrigatória');
+    }
+
+    if (files.length > 10) {
+      throw new BadRequestException('Máximo de 10 imagens permitidas');
+    }
+
+    // Validar datas/horas
+    const dateValidation = this.clothingStatusService.validateClothingDates(
+      body.initial_date,
+      body.initial_time,
+      body.end_date,
+      body.end_time,
+    );
+
+    if (!dateValidation.isValid) {
+      throw new BadRequestException({
+        message: 'Dados inválidos',
+        errors: dateValidation.errors,
+      });
+    }
+
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
+      const initialStatus = this.clothingStatusService.getInitialStatus(
+        body.initial_date,
+        body.initial_time,
+      );
+
       const clothing = await queryRunner.manager
         .getRepository('Clothing')
-        .save(queryRunner.manager.getRepository('Clothing').create(body));
-
-      console.log('Clothing Result:', clothing);
+        .save(
+          queryRunner.manager
+            .getRepository('Clothing')
+            .create({ ...body, status: initialStatus }),
+        );
 
       if (!clothing || !clothing.id) {
         throw new Error('Falha ao criar o produto');
@@ -132,6 +164,13 @@ export class ClothingController {
 
       // Processa todas as imagens
       for (const file of files) {
+        // Validar tipo de imagem
+        if (!file.mimetype.startsWith('image/')) {
+          throw new BadRequestException(
+            'Apenas arquivos de imagem são permitidos',
+          );
+        }
+
         const path = `clothing/${clothing.id}`;
         const imageUrl = await this.blobService.uploadFile(file, path);
 
@@ -286,6 +325,25 @@ export class ClothingController {
     return {
       success: true,
       message: `Processo do próximo lance iniciado para a peça ${id}`,
+    };
+  }
+
+  @Post(':id/disable-clothing')
+  async makeClothingDisabled(@Param('id') id: string) {
+    const clothing = await this.clothingService.findOne(+id);
+
+    if (clothing.status !== 'programmed') {
+      throw new ForbiddenException(
+        'Você só pode desabilitar peças programadas!',
+      );
+    }
+
+    // Desabilitar a peça
+    await this.clothingService.update(+id, { status: 'disabled' });
+
+    return {
+      success: true,
+      message: `Peça ${id} desabilitada com sucesso`,
     };
   }
 }
