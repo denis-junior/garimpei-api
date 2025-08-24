@@ -4,7 +4,6 @@ import { Store } from './store.entity';
 import { Repository } from 'typeorm';
 import { CreateStoreDto } from './dto/create-store.dto';
 import { UpdateStoreDto } from './dto/update-store.dto';
-import { ClothingStatus } from 'src/clothing/clothing.entity';
 
 @Injectable()
 export class StoreService {
@@ -47,12 +46,19 @@ export class StoreService {
   }
   async findOne(id: number): Promise<Store> {
     const store = await this.storeRepository.findOne({
-      where: { id, clothings: { status: 'active' as ClothingStatus } },
+      where: { id },
       relations: ['seller', 'clothings', 'clothings.images', 'clothings.bids'],
     });
+
     if (!store) {
       throw new NotFoundException(`Loja com id ${id} não encontrada`);
     }
+
+    // Filtra apenas as clothings com status 'active'
+    store.clothings = store.clothings.filter(
+      (clothing) => clothing.status === 'active',
+    );
+
     return store;
   }
 
