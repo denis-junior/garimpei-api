@@ -140,6 +140,7 @@ export class ClothingStatusService {
           winningBid: Number(winningBid.bid),
           auctionEndDate: clothing.end_date || '',
           auctionEndTime: clothing.end_time || '',
+          storeAccount: clothing.store.instagram || '',
         });
       }
 
@@ -296,6 +297,7 @@ export class ClothingStatusService {
           clothingTitle: clothing.name,
           winningBid: Number(nextWinningBid.bid),
           attemptNumber: nextAttempt + 1,
+          storeAccount: clothing.store.instagram || '',
         });
       }
 

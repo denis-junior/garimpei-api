@@ -9,6 +9,7 @@ interface AuctionWinnerData {
   winningBid: number;
   auctionEndDate: string;
   auctionEndTime: string;
+  storeAccount: string;
 }
 
 interface SecondChanceData {
@@ -17,6 +18,7 @@ interface SecondChanceData {
   clothingTitle: string;
   winningBid: number;
   attemptNumber: number;
+  storeAccount: string;
 }
 
 interface PaymentWarningData {
@@ -86,9 +88,11 @@ Você ganhou o leilão! 🏆
 📅 *Fim do leilão:* ${data.auctionEndDate} às ${data.auctionEndTime}
 
 ⏰ *Próximos passos:*
-Você tem 1 hora para confirmar sua compra no app Garimpei.
+Você tem 1 hora para confirmar sua compra entrando em contato com a loja!
 
-Acesse: ${this.configService.get('FRONTEND_URL')}
+Instagram da loja: https://www.instagram.com/${data.storeAccount}/
+
+Acesse: https://garimpei-dev.vercel.app/
 
 _Garimpei - Seu lance, sua cena!_`;
 
@@ -109,7 +113,9 @@ O vencedor anterior não confirmou a compra. Agora é sua vez! 🎯
 
 ⏰ *Você tem 1 hora para confirmar sua compra!*
 
-Acesse: ${this.configService.get('FRONTEND_URL')}
+Instagram da loja: https://www.instagram.com/${data.storeAccount}/
+
+Acesse: https://garimpei-dev.vercel.app/
 
 _Garimpei - Seu lance, sua cena!_`;
 
