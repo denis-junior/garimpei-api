@@ -328,7 +328,8 @@ export class ClothingController {
     };
   }
 
-  @Post(':id/disable-clothing')
+  @UseGuards(AuthGuard('jwt'))
+  @Delete(':id/disable-clothing')
   async makeClothingDisabled(@Param('id') id: string) {
     const clothing = await this.clothingService.findOne(+id);
 
