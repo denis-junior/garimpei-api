@@ -1,10 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Store } from './store.entity';
-import { Repository } from 'typeorm';
+import { ILike, Repository } from 'typeorm';
 import { CreateStoreDto } from './dto/create-store.dto';
 import { UpdateStoreDto } from './dto/update-store.dto';
 
+interface IFindAllQuery {
+  name?: any;
+  instagram?: any;
+  seller?: { id: number };
+}
 @Injectable()
 export class StoreService {
   constructor(
@@ -20,16 +25,38 @@ export class StoreService {
     return this.storeRepository.save(store);
   }
 
-  async findAll(idSeller?: number): Promise<Store[]> {
-    const query = idSeller
-      ? {
-          where: { seller: { id: idSeller } },
-          relations: ['seller', 'clothings'],
-        }
-      : {
-          relations: ['seller', 'clothings'],
-        };
-    const stores = await this.storeRepository.find(query);
+  async findAll(idSeller?: number, name?: string): Promise<Store[]> {
+    let whereConditions: any = {};
+
+    if (idSeller && name && name.length > 0) {
+      // Se tem idSeller e name, busca por seller E (name OU instagram)
+      whereConditions = [
+        {
+          seller: { id: idSeller },
+          name: ILike(`%${name}%`),
+        },
+        {
+          seller: { id: idSeller },
+          instagram: ILike(`%${name}%`),
+        },
+      ];
+    } else if (idSeller) {
+      // Se tem apenas idSeller
+      whereConditions = { seller: { id: idSeller } };
+    } else if (name && name.length > 0) {
+      // Se tem apenas name, busca por name OU instagram
+      whereConditions = [
+        { name: ILike(`%${name}%`) },
+        { instagram: ILike(`%${name}%`) },
+      ];
+    }
+
+    console.log('Query Options:', whereConditions);
+
+    const stores = await this.storeRepository.find({
+      relations: ['seller', 'clothings'],
+      where: whereConditions,
+    });
     return stores;
   }
 

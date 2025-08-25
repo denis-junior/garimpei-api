@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   Req,
+  Query,
 } from '@nestjs/common';
 import { StoreService } from './store.service';
 import { CreateStoreDto } from './dto/create-store.dto';
@@ -33,12 +34,15 @@ export class StoreController {
 
   @UseGuards(OptionalJwtAuthGuard)
   @Get()
-  findAll(@Req() req: IRequestWithUser): Promise<Store[] | Store> {
+  findAll(
+    @Req() req: IRequestWithUser,
+    @Query('name') name?: string,
+  ): Promise<Store[] | Store> {
     console.log('Usuário autenticado:', req.user);
     if (req.user && req.user.seller) {
-      return this.storeService.findAll(Number(req.user.userId));
+      return this.storeService.findAll(Number(req.user.userId), name);
     }
-    return this.storeService.findAll();
+    return this.storeService.findAll(undefined, name);
   }
 
   @UseGuards(OptionalJwtAuthGuard)
