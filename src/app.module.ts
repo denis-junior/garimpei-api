@@ -16,9 +16,9 @@ import { ClothingModule } from './clothing/clothing.module';
 import { Image } from './image/image.entity';
 import { ImageModule } from './image/image.module';
 import { AuthModule } from './auth/auth.module';
-// import { MercadoPagoModule } from './mercadoPago/mercadoPago.module';
-// import { Transaction } from './transactions/transaction.entity';
-// import { WebhooksModule } from './webhooks/webhooks.module';
+import { MercadoPagoModule } from './mercadoPago/mercadoPago.module';
+import { Transaction } from './transactions/transaction.entity';
+import { WebhooksModule } from './webhooks/webhooks.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { EmailModule } from './email/email.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -39,7 +39,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         password: configService.get('DB_PASSWORD'),
         database: configService.get('DB_DATABASE'),
         synchronize: true,
-        entities: [Buyer, Seller, Clothing, Bid, Store, Image],
+        entities: [Buyer, Seller, Clothing, Bid, Store, Image, Transaction],
       }),
       inject: [ConfigService],
     }),
@@ -52,6 +52,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     DashboardModule,
     AuthModule,
     EmailModule,
+    MercadoPagoModule,
+    WebhooksModule,
   ],
   controllers: [AppController],
   providers: [AppService],
