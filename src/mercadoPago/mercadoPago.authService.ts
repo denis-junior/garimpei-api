@@ -34,8 +34,10 @@ export class MercadoPagoOAuthService {
         },
       );
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
       return response.data;
     } catch (error) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       throw new Error(`Erro ao obter access token: ${error.message}`);
     }
   }
@@ -53,8 +55,10 @@ export class MercadoPagoOAuthService {
         },
       );
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
       return response.data;
     } catch (error) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       throw new Error(`Erro ao renovar token: ${error.message}`);
     }
   }

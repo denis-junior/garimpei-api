@@ -33,11 +33,11 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     TypeOrmModule.forRootAsync({
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
-        host: configService.get('DB_HOST'),
-        port: configService.get('DB_PORT'),
-        username: configService.get('DB_USERNAME'),
-        password: configService.get('DB_PASSWORD'),
-        database: configService.get('DB_DATABASE'),
+        host: configService.get('DB_HOST_LOCAL'),
+        port: configService.get('DB_PORT_LOCAL'),
+        username: configService.get('DB_USERNAME_LOCAL'),
+        password: configService.get('DB_PASSWORD_LOCAL'),
+        database: configService.get('DB_DATABASE_LOCAL'),
         synchronize: true,
         entities: [Buyer, Seller, Clothing, Bid, Store, Image, Transaction],
       }),

@@ -24,6 +24,18 @@ export class Seller {
   @Column({ default: '' })
   email: string;
 
+  @Column({ type: 'text', nullable: true })
+  mp_access_token: string;
+
+  @Column({ type: 'text', nullable: true })
+  mp_refresh_token: string;
+
+  @Column({ type: 'boolean', default: false })
+  mp_conectado: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  mp_conectado_em: Date;
+
   @OneToMany(() => Store, (store) => store.seller, { cascade: true })
   stores: Store[];
 }

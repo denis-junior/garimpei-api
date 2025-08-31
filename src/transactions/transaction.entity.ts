@@ -8,40 +8,43 @@ import {
 
 @Entity('transactions')
 export class Transaction {
-  @PrimaryGeneratedColumn()
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-  @Column()
+  @Column({ nullable: true })
   payment_id: string;
 
   @Column()
   vendedor_id: string;
 
-  @Column('decimal', { precision: 10, scale: 2, default: 0 })
-  valor_total: number; // Valor bruto (R$ 100.00)
+  @Column('decimal', { precision: 10, scale: 2 })
+  valor_total: number;
 
-  @Column('decimal', { precision: 10, scale: 2, default: 0 })
-  taxa_mercadopago: number; // Taxa do MP (R$ 5.48)
+  @Column('decimal', { precision: 10, scale: 2, nullable: true })
+  taxa_mercadopago: number;
 
-  @Column('decimal', { precision: 10, scale: 2, default: 0 })
-  valor_liquido: number; // Após taxa MP (R$ 94.52)
+  @Column('decimal', { precision: 10, scale: 2, nullable: true })
+  valor_liquido: number;
 
-  @Column('decimal', { precision: 10, scale: 2, default: 0 })
-  comissao_plataforma: number; // Sua comissão (R$ 14.18)
+  @Column('decimal', { precision: 10, scale: 2, nullable: true })
+  comissao_plataforma: number;
 
-  @Column('decimal', { precision: 10, scale: 2, default: 0 })
-  valor_vendedor: number; // Para o vendedor (R$ 80.34)
+  @Column('decimal', { precision: 10, scale: 2, nullable: true })
+  valor_vendedor: number;
 
   @Column()
   status: string;
 
-  @Column()
+  @Column({ nullable: true })
   descricao: string;
 
-  @Column()
+  @Column({ nullable: true })
   email_comprador: string;
 
-  @Column('json', { nullable: true })
+  @Column({ nullable: true })
+  tipo_pagamento: string;
+
+  @Column('jsonb', { nullable: true })
   metadata_pagamento: any;
 
   @CreateDateColumn()

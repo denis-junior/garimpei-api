@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MercadoPagoConfig, Payment, Preference } from 'mercadopago';
 import { Transaction } from '../transactions/transaction.entity';
+import { Seller } from '../seller/seller.entity';
+import axios from 'axios';
 
 @Injectable()
 export class MercadoPagoService {
@@ -13,9 +15,11 @@ export class MercadoPagoService {
   constructor(
     @InjectRepository(Transaction)
     private transactionRepository: Repository<Transaction>,
+    @InjectRepository(Seller)
+    private sellerRepository: Repository<Seller>,
   ) {
     this.client = new MercadoPagoConfig({
-      accessToken: process.env.MP_ACCESS_TOKEN,
+      accessToken: process.env.MP_ACCESS_TOKEN_PROD,
     });
     this.payment = new Payment(this.client);
     this.preference = new Preference(this.client);
@@ -134,19 +138,145 @@ export class MercadoPagoService {
     }
   }
 
-  // ETAPA 5: Buscar transações de um vendedor
-  async buscarTransacoesVendedor(vendedorId: string) {
-    return await this.transactionRepository.find({
-      where: { vendedor_id: vendedorId },
-      order: { created_at: 'DESC' },
+  // Buscar vendedor por ID (corrigido o tipo)
+  async buscarVendedorPorId(vendedorId: string) {
+    const vendedor = await this.sellerRepository.findOne({
+      where: { id: Number(vendedorId) }, // Se id for string, está correto
     });
+
+    if (!vendedor) {
+      throw new Error('Vendedor não encontrado');
+    }
+
+    return vendedor;
   }
 
-  // ETAPA 5: Buscar todas as transações (para admin)
+  // SPLIT AUTOMÁTICO CORRIGIDO
+  async processarPagamentoComSplit(dadosPagamento: any) {
+    try {
+      // Buscar vendedor no banco
+      const vendedor = await this.buscarVendedorPorId(
+        dadosPagamento.vendedor_id,
+      );
+
+      if (!vendedor.mp_access_token) {
+        throw new Error(
+          'Vendedor precisa conectar conta do Mercado Pago primeiro',
+        );
+      }
+
+      // Criar cliente com token do vendedor
+      const clienteVendedor = new MercadoPagoConfig({
+        accessToken: vendedor.mp_access_token,
+      });
+      const paymentVendedor = new Payment(clienteVendedor);
+
+      const paymentData = {
+        transaction_amount: dadosPagamento.valor,
+        token: dadosPagamento.token,
+        description: dadosPagamento.descricao,
+        payer: {
+          email: dadosPagamento.email_comprador,
+        },
+        installments: dadosPagamento.installments || 1,
+        // SUA COMISSÃO (vai para sua conta)
+        application_fee: dadosPagamento.comissao,
+        notification_url: `${process.env.WEBHOOK_URL}/webhooks/mercadopago`,
+        metadata: {
+          vendedor_id: dadosPagamento.vendedor_id,
+          tipo_pagamento: 'split_automatico',
+        },
+      };
+
+      console.log('🔄 Processando split automático:', {
+        vendedor_id: dadosPagamento.vendedor_id,
+        valor_total: dadosPagamento.valor,
+        comissao_plataforma: dadosPagamento.comissao,
+        valor_vendedor: dadosPagamento.valor - dadosPagamento.comissao,
+      });
+
+      // Processar pagamento na conta do vendedor
+      const response = await paymentVendedor.create({ body: paymentData });
+
+      // Salvar transação
+      const transaction = this.transactionRepository.create({
+        payment_id: response.id.toString(),
+        vendedor_id: dadosPagamento.vendedor_id,
+        valor_total: response.transaction_amount,
+        comissao_plataforma: dadosPagamento.comissao,
+        valor_vendedor: response.transaction_amount - dadosPagamento.comissao,
+        status: response.status,
+        descricao: dadosPagamento.descricao,
+        email_comprador: dadosPagamento.email_comprador,
+        tipo_pagamento: 'split_automatico',
+        metadata_pagamento: response,
+      });
+
+      await this.transactionRepository.save(transaction);
+
+      console.log('✅ Split automático processado:', {
+        payment_id: response.id,
+        status: response.status,
+        vendedor_recebe: response.transaction_amount - dadosPagamento.comissao,
+        plataforma_recebe: dadosPagamento.comissao,
+      });
+
+      return {
+        success: true,
+        payment_id: response.id,
+        status: response.status,
+        valor_total: response.transaction_amount,
+        comissao_plataforma: dadosPagamento.comissao,
+        valor_vendedor: response.transaction_amount - dadosPagamento.comissao,
+        response,
+      };
+    } catch (error) {
+      console.error('❌ Erro no split automático:', error);
+      throw new Error(`Erro no split: ${error.message}`);
+    }
+  }
+
+  // Métodos que faltavam no controller
+  async buscarTransacoesVendedor(vendedorId: string) {
+    try {
+      const transacoes = await this.transactionRepository.find({
+        where: { vendedor_id: vendedorId },
+        order: { created_at: 'DESC' },
+      });
+
+      return transacoes;
+    } catch (error) {
+      throw new Error(`Erro ao buscar transações: ${error.message}`);
+    }
+  }
+
+  async buscarSaldoVendedor(vendedorId: string) {
+    try {
+      const transacoes = await this.transactionRepository.find({
+        where: { vendedor_id: vendedorId },
+        order: { created_at: 'DESC' },
+      });
+
+      const saldo = transacoes.reduce((acc, transacao) => {
+        return acc + (Number(transacao.valor_vendedor) || 0);
+      }, 0);
+
+      return { vendedor_id: vendedorId, saldo };
+    } catch (error) {
+      throw new Error(`Erro ao buscar saldo: ${error.message}`);
+    }
+  }
+
   async buscarTodasTransacoes() {
-    return await this.transactionRepository.find({
-      order: { created_at: 'DESC' },
-    });
+    try {
+      const transacoes = await this.transactionRepository.find({
+        order: { created_at: 'DESC' },
+      });
+
+      return transacoes;
+    } catch (error) {
+      throw new Error(`Erro ao buscar todas as transações: ${error.message}`);
+    }
   }
 
   // Gerar token de cartão para testes (mantemos este)
@@ -178,30 +308,93 @@ export class MercadoPagoService {
 
   // Manter o OAuth para quando for para produção
   gerarLinkConexaoVendedor(vendedorId: string) {
-    const redirectUri = `${process.env.API_URL}/mercadopago/callback`;
-    const authUrl = `https://auth.mercadopago.com.br/authorization?client_id=${process.env.MP_APP_ID}&response_type=code&platform_id=mp&state=${vendedorId}&redirect_uri=${redirectUri}`;
+    const redirectUri = ` https://de568c0134b8.ngrok-free.app/mercadopago/callback`;
+    const authUrl = `https://auth.mercadopago.com.br/authorization?client_id=${process.env.MP_CLIENT_ID}&response_type=code&platform_id=mp&state=${vendedorId}&redirect_uri=${redirectUri}`;
     return authUrl;
   }
 
   async processarConexaoVendedor(code: string, vendedorId: string) {
     try {
-      const response = await fetch('https://api.mercadopago.com/oauth/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          client_id: process.env.MP_APP_ID,
+      const response = await axios.post(
+        'https://api.mercadopago.com/oauth/token',
+        {
+          client_id: process.env.MP_CLIENT_ID,
           client_secret: process.env.MP_CLIENT_SECRET,
           code: code,
           grant_type: 'authorization_code',
-          redirect_uri: `${process.env.API_URL}/mercadopago/callback`,
-        }),
+          redirect_uri: process.env.MP_REDIRECT_URI,
+        },
+        {
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+
+      const result = response.data;
+
+      if (result.access_token) {
+        // Salvar tokens no banco
+        await this.salvarTokenVendedor(
+          vendedorId,
+          result.access_token,
+          result.refresh_token,
+        );
+
+        console.log(`✅ Vendedor ${vendedorId} conectado com sucesso`);
+        return {
+          success: true,
+          message: 'Conta do Mercado Pago conectada com sucesso!',
+        };
+      } else {
+        throw new Error('Falha na autenticação');
+      }
+    } catch (error) {
+      console.error('❌ Erro ao conectar vendedor:', error);
+      throw new Error(`Erro ao conectar vendedor: ${error.message}`);
+    }
+  }
+
+  // Salvar access_token do vendedor após OAuth
+  async salvarTokenVendedor(
+    vendedorId: string,
+    accessToken: string,
+    refreshToken: string,
+  ) {
+    try {
+      await this.sellerRepository.update(vendedorId, {
+        mp_access_token: accessToken,
+        mp_refresh_token: refreshToken,
+        mp_conectado: true,
+        mp_conectado_em: new Date(),
       });
 
-      const result = await response.json();
-      console.log(`Vendedor ${vendedorId} conectado:`, result);
-      return result;
+      console.log(`✅ Token salvo para vendedor ${vendedorId}`);
+      return true;
     } catch (error) {
-      throw new Error(`Erro ao conectar vendedor: ${error.message}`);
+      throw new Error(`Erro ao salvar token: ${error.message}`);
+    }
+  }
+
+  // Verificar se vendedor tem conta conectada
+  async verificarConexaoVendedor(vendedorId: string) {
+    const vendedor = await this.buscarVendedorPorId(vendedorId);
+    return {
+      conectado: !!vendedor.mp_access_token,
+      link_conexao: vendedor.mp_access_token
+        ? null
+        : this.gerarLinkConexaoVendedor(vendedorId),
+    };
+  }
+
+  // Adicionar método público para buscar pagamento
+  async buscarPagamento(paymentId: string) {
+    try {
+      const payment = await this.payment.get({ id: paymentId });
+      return {
+        success: true,
+        payment,
+      };
+    } catch (error) {
+      throw new Error(`Erro ao buscar pagamento: ${error.message}`);
     }
   }
 }
