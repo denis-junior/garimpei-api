@@ -136,7 +136,7 @@ Pagamento pendente há ${data.daysWaiting} dia(s).
 
 Se o pagamento não for confirmado em breve, o produto será oferecido ao próximo colocado.
 
-Acompanhe em: ${this.configService.get('FRONTEND_URL')}
+Acompanhe em: https://garimpei-dev.vercel.app/
 
 _Garimpei - Seu lance, sua cena!_`;
 
