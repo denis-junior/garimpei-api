@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  Index,
 } from 'typeorm';
 
 @Entity('transactions')
@@ -13,6 +14,10 @@ export class Transaction {
 
   @Column({ nullable: true })
   payment_id: string;
+
+  @Column({ unique: true }) // ✅ Referência única
+  @Index() // ✅ Indexar para busca rápida
+  external_reference: string;
 
   @Column()
   vendedor_id: string;

@@ -165,6 +165,9 @@ export class MercadoPagoService {
         );
       }
 
+      // Gerar ID único para correlacionar com seu sistema
+      const externalReference = `${Date.now()}-${dadosPagamento.vendedor_id}-${Math.random().toString(36).substr(2, 9)}`;
+
       // Criar cliente com token do vendedor
       const clienteVendedor = new MercadoPagoConfig({
         accessToken: vendedor.mp_access_token,
@@ -175,6 +178,7 @@ export class MercadoPagoService {
         transaction_amount: dadosPagamento.valor,
         token: dadosPagamento.token,
         description: dadosPagamento.descricao,
+        external_reference: externalReference, // ✅ ID único para correlação
         payer: {
           email: dadosPagamento.email_comprador,
         },
@@ -185,10 +189,14 @@ export class MercadoPagoService {
         metadata: {
           vendedor_id: dadosPagamento.vendedor_id,
           tipo_pagamento: 'split_automatico',
+          external_reference: externalReference,
+          produto_id: dadosPagamento.produto_id, // Se houver
+          auction_id: dadosPagamento.auction_id, // Se for leilão
         },
       };
 
       console.log('🔄 Processando split automático:', {
+        external_reference: externalReference,
         vendedor_id: dadosPagamento.vendedor_id,
         valor_total: dadosPagamento.valor,
         comissao_plataforma: dadosPagamento.comissao,
@@ -198,9 +206,10 @@ export class MercadoPagoService {
       // Processar pagamento na conta do vendedor
       const response = await paymentVendedor.create({ body: paymentData });
 
-      // Salvar transação
+      // Salvar transação com external_reference
       const transaction = this.transactionRepository.create({
         payment_id: response.id.toString(),
+        external_reference: externalReference, // ✅ Salvar referência única
         vendedor_id: dadosPagamento.vendedor_id,
         valor_total: response.transaction_amount,
         comissao_plataforma: dadosPagamento.comissao,
@@ -215,6 +224,7 @@ export class MercadoPagoService {
       await this.transactionRepository.save(transaction);
 
       console.log('✅ Split automático processado:', {
+        external_reference: externalReference,
         payment_id: response.id,
         status: response.status,
         vendedor_recebe: response.transaction_amount - dadosPagamento.comissao,
@@ -224,6 +234,7 @@ export class MercadoPagoService {
       return {
         success: true,
         payment_id: response.id,
+        external_reference: externalReference, // ✅ Retornar para o frontend
         status: response.status,
         valor_total: response.transaction_amount,
         comissao_plataforma: dadosPagamento.comissao,
@@ -395,6 +406,47 @@ export class MercadoPagoService {
       };
     } catch (error) {
       throw new Error(`Erro ao buscar pagamento: ${error.message}`);
+    }
+  }
+
+  // Buscar transação por external_reference
+  async buscarTransacaoPorExternalReference(externalReference: string) {
+    try {
+      const transacao = await this.transactionRepository.findOne({
+        where: { external_reference: externalReference },
+      });
+
+      if (!transacao) {
+        throw new Error('Transação não encontrada');
+      }
+
+      return transacao;
+    } catch (error) {
+      throw new Error(`Erro ao buscar transação: ${error.message}`);
+    }
+  }
+
+  // Correlacionar payment_id do MP com ID interno
+  async correlacionarPagamento(paymentId: string) {
+    try {
+      const transacao = await this.transactionRepository.findOne({
+        where: { payment_id: paymentId.toString() },
+      });
+
+      if (!transacao) {
+        throw new Error('Transação não encontrada para este payment_id');
+      }
+
+      return {
+        payment_id: paymentId,
+        external_reference: transacao.external_reference,
+        internal_id: transacao.id,
+        vendedor_id: transacao.vendedor_id,
+        status: transacao.status,
+        valor_total: transacao.valor_total,
+      };
+    } catch (error) {
+      throw new Error(`Erro na correlação: ${error.message}`);
     }
   }
 }

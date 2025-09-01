@@ -190,4 +190,30 @@ export class MercadoPagoController {
       };
     }
   }
+
+  // Buscar transação por external_reference
+  @Get('transacao/referencia/:externalReference')
+  async buscarPorExternalReference(@Param('externalReference') externalReference: string) {
+    try {
+      return await this.mercadoPagoService.buscarTransacaoPorExternalReference(externalReference);
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
+  // Correlacionar payment_id com sistema interno
+  @Get('correlacao/:paymentId')
+  async correlacionarPagamento(@Param('paymentId') paymentId: string) {
+    try {
+      return await this.mercadoPagoService.correlacionarPagamento(paymentId);
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
 }
