@@ -58,82 +58,63 @@ export class MercadoPagoService {
   // ETAPA 5: Processar pagamento E salvar no banco (método principal)
   async processarPagamento(dadosPagamento: any) {
     try {
+      // ✅ GERAR external_reference para o método antigo também
+      const externalReference = `${Date.now()}-${dadosPagamento.vendedor_id}-${Math.random().toString(36).substr(2, 9)}`;
+
       const paymentData = {
         transaction_amount: dadosPagamento.valor,
         token: dadosPagamento.token,
         description: dadosPagamento.descricao,
+        external_reference: externalReference, // ✅ ADICIONAR
         payer: {
           email: dadosPagamento.email_comprador,
         },
         installments: dadosPagamento.installments || 1,
-        // ADICIONAR WEBHOOK URL
-        notification_url: `https://2abcb9272302.ngrok-free.app/webhooks/mercadopago`,
+        notification_url: `${process.env.WEBHOOK_URL}/webhooks/mercadopago`,
         metadata: {
-          vendedor_id: dadosPagamento.vendedor_id || 'vendedor-teste',
-          comissao_plataforma: dadosPagamento.comissao || 5,
+          vendedor_id: dadosPagamento.vendedor_id,
+          comissao_plataforma: dadosPagamento.comissao,
         },
       };
 
-      // console.log('📤 Enviando pagamento para MercadoPago com webhook:', {
-      //   notification_url: paymentData.notification_url,
-      //   valor: dadosPagamento.valor,
-      //   vendedor: dadosPagamento.vendedor_id,
-      // });
+      console.log('🔄 Processando pagamento:', paymentData);
 
-      console.log('payment Data:', paymentData);
-
-      // Processar pagamento no MercadoPago
       const response = await this.payment.create({ body: paymentData });
 
-      console.log('✅ Resposta do MercadoPago:', response);
-
-      // CÁLCULO CORRETO - Baseado nos dados reais do MercadoPago
-      const valorBruto = response.transaction_amount; // R$ 100.00
-      const taxaMercadoPago =
-        response.fee_details?.reduce((total, fee) => {
-          return total + (fee.amount || 0);
-        }, 0) || 0; // Taxa real cobrada pelo MP
-
-      const valorLiquido =
-        response.transaction_details?.net_received_amount ||
-        valorBruto - taxaMercadoPago; // R$ 94.52
-
-      const comissaoPercentual = dadosPagamento.comissao_percentual || 5; // 5%
-      const comissaoPlataforma = (valorLiquido * comissaoPercentual) / 100; // 5% de R$ 94.52 = R$ 14.18
+      // Calcular valores
+      const taxaMercadoPago = response.fee_details?.[0]?.amount || 0;
+      const valorLiquido = response.transaction_amount - taxaMercadoPago;
+      const comissaoPlataforma = dadosPagamento.comissao || 0;
       const valorVendedor = valorLiquido - comissaoPlataforma;
 
-      // Salvar transação no banco
+      // ✅ SALVAR COM external_reference
       const transaction = this.transactionRepository.create({
         payment_id: response.id.toString(),
+        external_reference: externalReference, // ✅ ADICIONAR
         vendedor_id: dadosPagamento.vendedor_id,
-        valor_total: valorBruto, // Valor original
-        taxa_mercadopago: taxaMercadoPago, // Taxa do MP
-        valor_liquido: valorLiquido, // Valor após taxa MP
-        comissao_plataforma: comissaoPlataforma, // Sua comissão sobre o líquido
-        valor_vendedor: valorVendedor, // O que o vendedor recebe
+        valor_total: response.transaction_amount,
+        taxa_mercadopago: taxaMercadoPago,
+        valor_liquido: valorLiquido,
+        comissao_plataforma: comissaoPlataforma,
+        valor_vendedor: valorVendedor,
         status: response.status,
         descricao: dadosPagamento.descricao,
         email_comprador: dadosPagamento.email_comprador,
+        tipo_pagamento: 'pagamento_normal',
         metadata_pagamento: response,
       });
 
       await this.transactionRepository.save(transaction);
 
-      console.log('✅ Cálculo de comissões:', {
+      console.log('✅ Pagamento processado:', {
         payment_id: response.id,
-        vendedor: dadosPagamento.vendedor_id,
-        valor_bruto: valorBruto,
-        taxa_mercadopago: taxaMercadoPago,
-        valor_liquido: valorLiquido,
-        comissao_percentual: `${comissaoPercentual}%`,
-        comissao_plataforma: comissaoPlataforma,
-        valor_vendedor: valorVendedor,
+        external_reference: externalReference, // ✅ LOG
         status: response.status,
       });
 
       return response;
     } catch (error) {
-      console.error('❌ Erro detalhado:', error);
+      console.error('❌ Erro ao processar pagamento:', error);
       throw new Error(`Erro ao processar pagamento: ${error.message}`);
     }
   }
