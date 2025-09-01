@@ -308,7 +308,7 @@ export class MercadoPagoService {
 
   // Manter o OAuth para quando for para produção
   gerarLinkConexaoVendedor(vendedorId: string) {
-    const redirectUri = ` https://de568c0134b8.ngrok-free.app/mercadopago/callback`;
+    const redirectUri = process.env.MP_REDIRECT_URI;
     const authUrl = `https://auth.mercadopago.com.br/authorization?client_id=${process.env.MP_CLIENT_ID}&response_type=code&platform_id=mp&state=${vendedorId}&redirect_uri=${redirectUri}`;
     return authUrl;
   }
