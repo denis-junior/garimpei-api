@@ -135,16 +135,14 @@ export class MercadoPagoController {
   @Post('renovar-token/:vendedorId')
   async renovarTokenVendedor(@Param('vendedorId') vendedorId: string) {
     try {
-      const vendedor =
-        await this.mercadoPagoService.buscarVendedorPorId(vendedorId);
+      const vendedor = await this.mercadoPagoService.buscarVendedorPorId(vendedorId);
 
       if (!vendedor.mp_refresh_token) {
         throw new Error('Token de renovação não encontrado');
       }
 
-      const novoToken = await this.oauthService.refreshToken(
-        vendedor.mp_refresh_token,
-      );
+      // ✅ USAR O AUTH SERVICE PARA RENOVAR TOKEN
+      const novoToken = await this.oauthService.refreshToken(vendedor.mp_refresh_token);
 
       await this.mercadoPagoService.salvarTokenVendedor(
         vendedorId,

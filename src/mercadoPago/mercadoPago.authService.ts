@@ -17,12 +17,22 @@ export class MercadoPagoOAuthService {
       redirect_uri: this.redirectUri,
     });
 
-    return `${baseUrl}?${params.toString()}`;
+    const fullUrl = `${baseUrl}?${params.toString()}`;
+
+    console.log('🔗 URL OAuth gerada:', {
+      client_id: this.clientId,
+      redirect_uri: this.redirectUri,
+      url: fullUrl,
+    });
+
+    return fullUrl;
   }
 
   // Trocar código por access token
   async exchangeCodeForToken(code: string) {
     try {
+      console.log('🔄 Trocando code por token:', { code });
+
       const response = await axios.post(
         'https://api.mercadopago.com/oauth/token',
         {
@@ -32,12 +42,15 @@ export class MercadoPagoOAuthService {
           code: code,
           redirect_uri: this.redirectUri,
         },
+        {
+          headers: { 'Content-Type': 'application/json' },
+        },
       );
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+      console.log('✅ Token obtido com sucesso');
       return response.data;
     } catch (error) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      console.error('❌ Erro ao obter token:', error.response?.data || error);
       throw new Error(`Erro ao obter access token: ${error.message}`);
     }
   }
@@ -45,6 +58,8 @@ export class MercadoPagoOAuthService {
   // Renovar access token
   async refreshToken(refreshToken: string) {
     try {
+      console.log('🔄 Renovando token...');
+
       const response = await axios.post(
         'https://api.mercadopago.com/oauth/token',
         {
@@ -53,12 +68,15 @@ export class MercadoPagoOAuthService {
           grant_type: 'refresh_token',
           refresh_token: refreshToken,
         },
+        {
+          headers: { 'Content-Type': 'application/json' },
+        },
       );
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+      console.log('✅ Token renovado com sucesso');
       return response.data;
     } catch (error) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      console.error('❌ Erro ao renovar token:', error.response?.data || error);
       throw new Error(`Erro ao renovar token: ${error.message}`);
     }
   }

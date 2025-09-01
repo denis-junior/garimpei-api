@@ -4,7 +4,8 @@ import { Repository } from 'typeorm';
 import { MercadoPagoConfig, Payment, Preference } from 'mercadopago';
 import { Transaction } from '../transactions/transaction.entity';
 import { Seller } from '../seller/seller.entity';
-import axios from 'axios';
+// ✅ IMPORTAR O AUTH SERVICE
+import { MercadoPagoOAuthService } from './mercadoPago.authService';
 
 @Injectable()
 export class MercadoPagoService {
@@ -17,6 +18,8 @@ export class MercadoPagoService {
     private transactionRepository: Repository<Transaction>,
     @InjectRepository(Seller)
     private sellerRepository: Repository<Seller>,
+    // ✅ INJETAR O AUTH SERVICE
+    private readonly oauthService: MercadoPagoOAuthService,
   ) {
     this.client = new MercadoPagoConfig({
       accessToken: process.env.MP_ACCESS_TOKEN_PROD,
@@ -298,33 +301,21 @@ export class MercadoPagoService {
     }
   }
 
-  // Manter o OAuth para quando for para produção
+  // ✅ USAR O AUTH SERVICE EM VEZ DO CÓDIGO DUPLICADO
   gerarLinkConexaoVendedor(vendedorId: string) {
-    const redirectUri = process.env.MP_REDIRECT_URI;
-    const authUrl = `https://auth.mercadopago.com.br/authorization?client_id=${process.env.MP_CLIENT_ID}&response_type=code&platform_id=mp&state=${vendedorId}&redirect_uri=${redirectUri}`;
-    return authUrl;
+    const baseUrl = this.oauthService.generateAuthUrl();
+    return `${baseUrl}&state=${vendedorId}`;
   }
 
+  // ✅ USAR O AUTH SERVICE PARA TROCAR CODE POR TOKEN
   async processarConexaoVendedor(code: string, vendedorId: string) {
     try {
-      const response = await axios.post(
-        'https://api.mercadopago.com/oauth/token',
-        {
-          client_id: process.env.MP_CLIENT_ID,
-          client_secret: process.env.MP_CLIENT_SECRET,
-          code: code,
-          grant_type: 'authorization_code',
-          redirect_uri: process.env.MP_REDIRECT_URI,
-        },
-        {
-          headers: { 'Content-Type': 'application/json' },
-        },
-      );
+      console.log('🔄 Processando conexão OAuth:', { code, vendedorId });
 
-      const result = response.data;
+      // ✅ USAR O MÉTODO DO AUTH SERVICE
+      const result = await this.oauthService.exchangeCodeForToken(code);
 
       if (result.access_token) {
-        // Salvar tokens no banco
         await this.salvarTokenVendedor(
           vendedorId,
           result.access_token,
@@ -337,7 +328,7 @@ export class MercadoPagoService {
           message: 'Conta do Mercado Pago conectada com sucesso!',
         };
       } else {
-        throw new Error('Falha na autenticação');
+        throw new Error(`Falha na autenticação: ${JSON.stringify(result)}`);
       }
     } catch (error) {
       console.error('❌ Erro ao conectar vendedor:', error);
