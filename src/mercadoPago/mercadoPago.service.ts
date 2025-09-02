@@ -138,21 +138,30 @@ export class MercadoPagoService {
   // SPLIT AUTOMÁTICO CORRIGIDO
   async processarPagamentoComSplit(dadosPagamento: any) {
     try {
-      const vendedor = await this.buscarVendedorPorId(
-        dadosPagamento.vendedor_id,
-      );
+      // ✅ VALIDAÇÕES
+      if (!dadosPagamento.token) {
+        throw new Error('Token de pagamento é obrigatório');
+      }
 
-      // ✅ VERIFICAR E RENOVAR TOKEN SE NECESSÁRIO
-      const tokenValido = await this.verificarEValidarToken(
-        dadosPagamento.vendedor_id,
-      );
+      console.log('🔍 Debug dados recebidos:', {
+        token: dadosPagamento.token,
+        payment_method_id: dadosPagamento.payment_method_id,
+        valor: dadosPagamento.valor,
+        vendedor_id: dadosPagamento.vendedor_id,
+      });
+
+      const vendedor = await this.buscarVendedorPorId(dadosPagamento.vendedor_id);
+      
+      if (!vendedor.mp_access_token) {
+        throw new Error('Vendedor precisa conectar conta do Mercado Pago primeiro');
+      }
 
       // Gerar ID único para correlacionar
       const externalReference = `${Date.now()}-${dadosPagamento.vendedor_id}-${Math.random().toString(36).substr(2, 9)}`;
 
-      // Usar token válido/renovado
+      // Criar cliente com token do vendedor
       const clienteVendedor = new MercadoPagoConfig({
-        accessToken: tokenValido,
+        accessToken: vendedor.mp_access_token,
       });
       const paymentVendedor = new Payment(clienteVendedor);
 
@@ -165,22 +174,31 @@ export class MercadoPagoService {
           email: dadosPagamento.email_comprador,
         },
         installments: dadosPagamento.installments || 1,
+        // ✅ ADICIONAR payment_method_id se disponível
+        ...(dadosPagamento.payment_method_id && { 
+          payment_method_id: dadosPagamento.payment_method_id 
+        }),
+        // SUA COMISSÃO (vai para sua conta)
         application_fee: dadosPagamento.comissao,
         notification_url: `${process.env.WEBHOOK_URL}/webhooks/mercadopago`,
         metadata: {
           vendedor_id: dadosPagamento.vendedor_id,
           tipo_pagamento: 'split_automatico',
           external_reference: externalReference,
+          produto_id: dadosPagamento.produto_id,
         },
       };
 
-      console.log('🔄 Processando split automático com token válido:', {
+      console.log('🔄 Processando split automático:', {
         external_reference: externalReference,
         vendedor_id: dadosPagamento.vendedor_id,
         valor_total: dadosPagamento.valor,
         comissao_plataforma: dadosPagamento.comissao,
+        valor_vendedor: dadosPagamento.valor - dadosPagamento.comissao,
+        payment_data: paymentData,
       });
 
+      // Processar pagamento na conta do vendedor
       const response = await paymentVendedor.create({ body: paymentData });
 
       // Salvar transação
@@ -200,6 +218,14 @@ export class MercadoPagoService {
 
       await this.transactionRepository.save(transaction);
 
+      console.log('✅ Split automático processado:', {
+        external_reference: externalReference,
+        payment_id: response.id,
+        status: response.status,
+        vendedor_recebe: response.transaction_amount - dadosPagamento.comissao,
+        plataforma_recebe: dadosPagamento.comissao,
+      });
+
       return {
         success: true,
         payment_id: response.id,
@@ -212,6 +238,15 @@ export class MercadoPagoService {
       };
     } catch (error) {
       console.error('❌ Erro no split automático:', error);
+      
+      // ✅ LOG MAIS DETALHADO DO ERRO
+      if (error.cause) {
+        console.error('❌ Causa do erro:', error.cause);
+      }
+      if (error.api_response) {
+        console.error('❌ Resposta da API:', error.api_response);
+      }
+      
       throw new Error(`Erro no split: ${error.message}`);
     }
   }
