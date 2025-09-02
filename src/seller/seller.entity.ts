@@ -36,6 +36,13 @@ export class Seller {
   @Column({ type: 'timestamp', nullable: true })
   mp_conectado_em: Date;
 
+  // ✅ ADICIONAR CONTROLE DE EXPIRAÇÃO
+  @Column({ type: 'timestamp', nullable: true })
+  mp_token_expira_em: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  mp_ultimo_uso: Date;
+
   @OneToMany(() => Store, (store) => store.seller, { cascade: true })
   stores: Store[];
 }

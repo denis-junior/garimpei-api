@@ -138,23 +138,21 @@ export class MercadoPagoService {
   // SPLIT AUTOMÁTICO CORRIGIDO
   async processarPagamentoComSplit(dadosPagamento: any) {
     try {
-      // Buscar vendedor no banco
       const vendedor = await this.buscarVendedorPorId(
         dadosPagamento.vendedor_id,
       );
 
-      if (!vendedor.mp_access_token) {
-        throw new Error(
-          'Vendedor precisa conectar conta do Mercado Pago primeiro',
-        );
-      }
+      // ✅ VERIFICAR E RENOVAR TOKEN SE NECESSÁRIO
+      const tokenValido = await this.verificarEValidarToken(
+        dadosPagamento.vendedor_id,
+      );
 
-      // Gerar ID único para correlacionar com seu sistema
+      // Gerar ID único para correlacionar
       const externalReference = `${Date.now()}-${dadosPagamento.vendedor_id}-${Math.random().toString(36).substr(2, 9)}`;
 
-      // Criar cliente com token do vendedor
+      // Usar token válido/renovado
       const clienteVendedor = new MercadoPagoConfig({
-        accessToken: vendedor.mp_access_token,
+        accessToken: tokenValido,
       });
       const paymentVendedor = new Payment(clienteVendedor);
 
@@ -162,38 +160,33 @@ export class MercadoPagoService {
         transaction_amount: dadosPagamento.valor,
         token: dadosPagamento.token,
         description: dadosPagamento.descricao,
-        external_reference: externalReference, // ✅ ID único para correlação
+        external_reference: externalReference,
         payer: {
           email: dadosPagamento.email_comprador,
         },
         installments: dadosPagamento.installments || 1,
-        // SUA COMISSÃO (vai para sua conta)
         application_fee: dadosPagamento.comissao,
         notification_url: `${process.env.WEBHOOK_URL}/webhooks/mercadopago`,
         metadata: {
           vendedor_id: dadosPagamento.vendedor_id,
           tipo_pagamento: 'split_automatico',
           external_reference: externalReference,
-          produto_id: dadosPagamento.produto_id, // Se houver
-          auction_id: dadosPagamento.auction_id, // Se for leilão
         },
       };
 
-      console.log('🔄 Processando split automático:', {
+      console.log('🔄 Processando split automático com token válido:', {
         external_reference: externalReference,
         vendedor_id: dadosPagamento.vendedor_id,
         valor_total: dadosPagamento.valor,
         comissao_plataforma: dadosPagamento.comissao,
-        valor_vendedor: dadosPagamento.valor - dadosPagamento.comissao,
       });
 
-      // Processar pagamento na conta do vendedor
       const response = await paymentVendedor.create({ body: paymentData });
 
-      // Salvar transação com external_reference
+      // Salvar transação
       const transaction = this.transactionRepository.create({
         payment_id: response.id.toString(),
-        external_reference: externalReference, // ✅ Salvar referência única
+        external_reference: externalReference,
         vendedor_id: dadosPagamento.vendedor_id,
         valor_total: response.transaction_amount,
         comissao_plataforma: dadosPagamento.comissao,
@@ -207,18 +200,10 @@ export class MercadoPagoService {
 
       await this.transactionRepository.save(transaction);
 
-      console.log('✅ Split automático processado:', {
-        external_reference: externalReference,
-        payment_id: response.id,
-        status: response.status,
-        vendedor_recebe: response.transaction_amount - dadosPagamento.comissao,
-        plataforma_recebe: dadosPagamento.comissao,
-      });
-
       return {
         success: true,
         payment_id: response.id,
-        external_reference: externalReference, // ✅ Retornar para o frontend
+        external_reference: externalReference,
         status: response.status,
         valor_total: response.transaction_amount,
         comissao_plataforma: dadosPagamento.comissao,
@@ -343,16 +328,32 @@ export class MercadoPagoService {
     refreshToken: string,
   ) {
     try {
-      await this.sellerRepository.update(vendedorId, {
-        mp_access_token: accessToken,
-        mp_refresh_token: refreshToken,
-        mp_conectado: true,
-        mp_conectado_em: new Date(),
-      });
+      // ✅ CALCULAR DATA DE EXPIRAÇÃO (6 meses)
+      const dataExpiracao = new Date();
+      dataExpiracao.setMonth(dataExpiracao.getMonth() + 6);
 
-      console.log(`✅ Token salvo para vendedor ${vendedorId}`);
+      const result = await this.sellerRepository.update(
+        { id: Number(vendedorId) },
+        {
+          mp_access_token: accessToken,
+          mp_refresh_token: refreshToken,
+          mp_conectado: true,
+          mp_conectado_em: new Date(),
+          mp_token_expira_em: dataExpiracao, // ✅ SALVAR EXPIRAÇÃO
+          mp_ultimo_uso: new Date(),
+        },
+      );
+
+      if (result.affected === 0) {
+        throw new Error('Vendedor não encontrado');
+      }
+
+      console.log(
+        `✅ Token salvo para vendedor ${vendedorId} (expira em: ${dataExpiracao.toISOString()})`,
+      );
       return true;
     } catch (error) {
+      console.error('❌ Erro ao salvar token:', error);
       throw new Error(`Erro ao salvar token: ${error.message}`);
     }
   }
@@ -419,6 +420,62 @@ export class MercadoPagoService {
       };
     } catch (error) {
       throw new Error(`Erro na correlação: ${error.message}`);
+    }
+  }
+
+  // Verificar se token está válido antes de usar
+  async verificarEValidarToken(vendedorId: string) {
+    try {
+      const vendedor = await this.buscarVendedorPorId(vendedorId);
+
+      if (!vendedor.mp_access_token) {
+        throw new Error('Vendedor não tem token');
+      }
+
+      // Testar se token ainda é válido fazendo uma chamada simples
+      const cliente = new MercadoPagoConfig({
+        accessToken: vendedor.mp_access_token,
+      });
+
+      try {
+        // Fazer uma chamada de teste para verificar validade
+        const payment = new Payment(cliente);
+        await payment.search({
+          options: {
+            limit: 1,
+          },
+        });
+
+        console.log(`✅ Token do vendedor ${vendedorId} ainda válido`);
+        return vendedor.mp_access_token;
+      } catch (tokenError) {
+        console.log(
+          `⚠️ Token expirado para vendedor ${vendedorId}, renovando...`,
+        );
+
+        if (vendedor.mp_refresh_token) {
+          // Renovar token automaticamente
+          const novoToken = await this.oauthService.refreshToken(
+            vendedor.mp_refresh_token,
+          );
+
+          await this.salvarTokenVendedor(
+            vendedorId,
+            novoToken.access_token,
+            novoToken.refresh_token,
+          );
+
+          console.log(`✅ Token renovado para vendedor ${vendedorId}`);
+          return novoToken.access_token;
+        } else {
+          throw new Error(
+            'Token expirado e sem refresh token. Vendedor precisa reconectar.',
+          );
+        }
+      }
+    } catch (error) {
+      console.error(`❌ Erro ao verificar token:`, error);
+      throw new Error(`Erro ao verificar token: ${error.message}`);
     }
   }
 }
