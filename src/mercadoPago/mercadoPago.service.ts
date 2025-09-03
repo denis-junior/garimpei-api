@@ -1,11 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { MercadoPagoConfig, Payment, Preference } from 'mercadopago';
+import {
+  IdentificationType,
+  MercadoPagoConfig,
+  Payment,
+  Preference,
+} from 'mercadopago';
 import { Transaction } from '../transactions/transaction.entity';
 import { Seller } from '../seller/seller.entity';
 // ✅ IMPORTAR O AUTH SERVICE
 import { MercadoPagoOAuthService } from './mercadoPago.authService';
+import { IPaymentData } from './interfaces';
 
 @Injectable()
 export class MercadoPagoService {
@@ -136,7 +142,7 @@ export class MercadoPagoService {
   }
 
   // SPLIT AUTOMÁTICO CORRIGIDO
-  async processarPagamentoComSplit(dadosPagamento: any) {
+  async processarPagamentoComSplit(dadosPagamento: IPaymentData) {
     try {
       // ✅ VALIDAÇÕES
       if (!dadosPagamento.token) {
@@ -150,10 +156,14 @@ export class MercadoPagoService {
         vendedor_id: dadosPagamento.vendedor_id,
       });
 
-      const vendedor = await this.buscarVendedorPorId(dadosPagamento.vendedor_id);
-      
+      const vendedor = await this.buscarVendedorPorId(
+        dadosPagamento.vendedor_id,
+      );
+
       if (!vendedor.mp_access_token) {
-        throw new Error('Vendedor precisa conectar conta do Mercado Pago primeiro');
+        throw new Error(
+          'Vendedor precisa conectar conta do Mercado Pago primeiro',
+        );
       }
 
       // Gerar ID único para correlacionar
@@ -166,17 +176,23 @@ export class MercadoPagoService {
       const paymentVendedor = new Payment(clienteVendedor);
 
       const paymentData = {
-        transaction_amount: dadosPagamento.valor,
-        token: dadosPagamento.token,
-        description: dadosPagamento.descricao,
+        transaction_amount: dadosPagamento.valor, //total amount clothing
+        token: dadosPagamento.token, // card token
+        description: dadosPagamento.descricao, //name of clothing
         external_reference: externalReference,
         payer: {
           email: dadosPagamento.email_comprador,
+          identification: {
+            type: 'CPF',
+            number: '02040104208',
+          },
+          first_name: 'Comprador',
+          last_name: 'Sobrenome',
         },
         installments: dadosPagamento.installments || 1,
         // ✅ ADICIONAR payment_method_id se disponível
-        ...(dadosPagamento.payment_method_id && { 
-          payment_method_id: dadosPagamento.payment_method_id 
+        ...(dadosPagamento.payment_method_id && {
+          payment_method_id: dadosPagamento.payment_method_id,
         }),
         // SUA COMISSÃO (vai para sua conta)
         application_fee: dadosPagamento.comissao,
@@ -238,7 +254,7 @@ export class MercadoPagoService {
       };
     } catch (error) {
       console.error('❌ Erro no split automático:', error);
-      
+
       // ✅ LOG MAIS DETALHADO DO ERRO
       if (error.cause) {
         console.error('❌ Causa do erro:', error.cause);
@@ -246,7 +262,7 @@ export class MercadoPagoService {
       if (error.api_response) {
         console.error('❌ Resposta da API:', error.api_response);
       }
-      
+
       throw new Error(`Erro no split: ${error.message}`);
     }
   }

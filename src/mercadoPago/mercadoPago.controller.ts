@@ -1,6 +1,7 @@
 import { Controller, Post, Body, Get, Param, Query } from '@nestjs/common';
 import { MercadoPagoService } from './mercadoPago.service';
 import { MercadoPagoOAuthService } from './mercadoPago.authService';
+import { IPaymentData } from './interfaces';
 
 @Controller('mercadopago')
 export class MercadoPagoController {
@@ -17,7 +18,7 @@ export class MercadoPagoController {
 
   // NOVO - Endpoint para pagamento com split automático
   @Post('processar-pagamento-split')
-  async processarPagamentoComSplit(@Body() dadosPagamento: any) {
+  async processarPagamentoComSplit(@Body() dadosPagamento: IPaymentData) {
     return await this.mercadoPagoService.processarPagamentoComSplit(
       dadosPagamento,
     );
