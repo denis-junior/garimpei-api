@@ -190,7 +190,7 @@ export class ClothingService {
   async findOne(id: number): Promise<Clothing> {
     const clothing = await this.clothingRepository.findOne({
       where: { id },
-      relations: ['store', 'bids', 'bids.buyer', 'images'],
+      relations: ['store', 'store.seller', 'bids', 'bids.buyer', 'images'],
     });
     if (!clothing) {
       throw new NotFoundException(`Store with id ${id} not found`);
