@@ -164,22 +164,39 @@ export class WebhooksService {
     }
   }
 
-  // ✅ MÉTODO PARA AGENDAR TRANSFERÊNCIA MANUAL
-  private async agendarTransferenciaManual(transaction: any) {
+  // ✅ MÉTODO CORRIGIDO PARA AGENDAR TRANSFERÊNCIA MANUAL
+  private async agendarTransferenciaManual(transaction: Transaction) {
     try {
-      // Atualizar status para indicar que precisa de transferência
-      transaction.transfer_status = 'pending';
-      transaction.transfer_scheduled_at = new Date();
+      // ✅ NÃO ALTERAR O STATUS - ELE JÁ ESTÁ CORRETO (approved)
+      // ✅ USAR CAMPO QUE EXISTE NA ENTIDADE
+      transaction.updated_at = new Date(); // ✅ APENAS ATUALIZAR TIMESTAMP
+
+      // ✅ MARCAR NO METADATA PARA CONTROLE
+      const metadata = transaction.metadata_pagamento || {};
+      metadata.transfer_status = 'pending_manual';
+      metadata.transfer_scheduled_at = new Date().toISOString();
+      metadata.requires_manual_transfer = true;
+
+      transaction.metadata_pagamento = metadata;
+
       await this.transactionRepository.save(transaction);
 
       console.log(
         `📅 Transferência manual agendada para transação ${transaction.id}`,
       );
+      console.log(`💰 Valores:`);
+      console.log(
+        `   🏪 Para vendedor ${transaction.vendedor_id}: R$ ${transaction.valor_vendedor}`,
+      );
+      console.log(
+        `   🏢 Comissão plataforma: R$ ${transaction.comissao_plataforma}`,
+      );
 
-      // TODO: Implementar sistema de transferências
-      // - Enviar para fila de processamento
-      // - Notificar admin
-      // - Criar registro de transferência
+      // ✅ AQUI VOCÊ PODE:
+      // 1. Enviar email/notificação para admin
+      // 2. Adicionar à fila de processamento
+      // 3. Salvar em tabela separada de transferências
+      // 4. Integrar com sistema de pagamentos
     } catch (error) {
       console.error('❌ Erro ao agendar transferência manual:', error);
     }
