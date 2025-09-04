@@ -7,13 +7,15 @@ export class WebhooksController {
 
   @Post('mercadopago')
   @HttpCode(200)
-  async receberWebhookMercadoPago(@Body() notification: any) {
+  async receberWebhookMercadoPago(
+    @Body() notification: { resource: string; topic: string },
+  ) {
     try {
       console.log('🔔 Webhook MercadoPago recebido:', notification);
 
       // ✅ VERIFICAR SE É NOTIFICAÇÃO DE PAGAMENTO
-      if (notification.type === 'payment' && notification.data?.id) {
-        const paymentId = notification.data.id;
+      if (notification.topic === 'payment' && notification.resource) {
+        const paymentId = notification.resource;
         console.log(`💳 Processando pagamento: ${paymentId}`);
 
         // ✅ USAR SEU SERVICE EXISTENTE

@@ -124,8 +124,12 @@ export class WebhooksService {
 
         if (isPix && isManualSplit) {
           console.log(`💰 PIX Manual Split - Agendar transferência:`);
-          console.log(`   🏪 Vendedor ${transaction.vendedor_id}: R$ ${transaction.valor_vendedor}`);
-          console.log(`   🏢 Plataforma: R$ ${transaction.comissao_plataforma}`);
+          console.log(
+            `   🏪 Vendedor ${transaction.vendedor_id}: R$ ${transaction.valor_vendedor}`,
+          );
+          console.log(
+            `   🏢 Plataforma: R$ ${transaction.comissao_plataforma}`,
+          );
 
           // ✅ MARCAR PARA TRANSFERÊNCIA MANUAL
           await this.agendarTransferenciaManual(transaction);
@@ -168,7 +172,9 @@ export class WebhooksService {
       transaction.transfer_scheduled_at = new Date();
       await this.transactionRepository.save(transaction);
 
-      console.log(`📅 Transferência manual agendada para transação ${transaction.id}`);
+      console.log(
+        `📅 Transferência manual agendada para transação ${transaction.id}`,
+      );
 
       // TODO: Implementar sistema de transferências
       // - Enviar para fila de processamento
@@ -201,7 +207,7 @@ export class WebhooksService {
   async buscarTransacaoPorPaymentId(paymentId: string) {
     try {
       const transaction = await this.transactionRepository.findOne({
-        where: { payment_id: paymentId.toString() }
+        where: { payment_id: paymentId.toString() },
       });
       return transaction;
     } catch (error) {
