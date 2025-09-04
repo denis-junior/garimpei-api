@@ -7,7 +7,7 @@ export function calcularFeesJustos(
   const applicationFee = valorVenda * (percentualComissao / 100);
   const vendedorRecebe = valorLiquido - applicationFee;
 
-  return {
+  const oldReturn = {
     valorVenda,
     taxaMercadoPago: Number(taxaMercadoPago.toFixed(2)),
     applicationFee: Number(applicationFee.toFixed(2)),
@@ -16,4 +16,6 @@ export function calcularFeesJustos(
       ((vendedorRecebe / valorVenda) * 100).toFixed(1),
     ),
   };
+
+  return Number(applicationFee.toFixed(2));
 }

@@ -1,56 +1,50 @@
-import { Controller, Post, Body, Headers, Req, Get } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode } from '@nestjs/common';
 import { WebhooksService } from './webhooks.service';
 
 @Controller('webhooks')
 export class WebhooksController {
   constructor(private readonly webhooksService: WebhooksService) {}
 
-  // Endpoint para testar se o webhook está funcionando
-  @Get('test')
-  test() {
-    return {
-      message: 'Webhook endpoint funcionando!',
-      timestamp: new Date().toISOString(),
-      url: 'https://2abcb9272302.ngrok-free.app/webhooks/mercadopago',
-    };
-  }
-
   @Post('mercadopago')
-  async mercadopagoWebhook(
-    @Body() body: any,
-    @Headers() headers: any,
-    @Req() req: any,
-  ) {
+  @HttpCode(200)
+  async receberWebhookMercadoPago(@Body() notification: any) {
     try {
-      console.log('🔔 Webhook MercadoPago recebido:', {
-        //   timestamp: new Date().toISOString(),
-        //   type: body.type,
-        //   action: body.action,
-        //   data_id: body.data?.id,
-        //   headers: {
-        //     'user-agent': headers['user-agent'],
-        //     'content-type': headers['content-type'],
-        //   },
-        //   body: body,
-        //   query: req.query,
-      });
+      console.log('🔔 Webhook MercadoPago recebido:', notification);
 
-      // Verificar se é notificação de pagamento
-      if (body.type === 'payment') {
-        console.log(`💳 Processando notificação de pagamento: ${body.data.id}`);
-        await this.webhooksService.processarNotificacaoPagamento(body.data.id);
+      // ✅ VERIFICAR SE É NOTIFICAÇÃO DE PAGAMENTO
+      if (notification.type === 'payment' && notification.data?.id) {
+        const paymentId = notification.data.id;
+        console.log(`💳 Processando pagamento: ${paymentId}`);
+
+        // ✅ USAR SEU SERVICE EXISTENTE
+        await this.webhooksService.processarNotificacaoPagamento(paymentId);
+
+        return {
+          received: true,
+          payment_id: paymentId,
+          message: 'Webhook processado com sucesso',
+        };
       } else {
-        console.log(`ℹ️ Tipo de notificação ignorado: ${body.type}`);
+        console.log('⚠️ Webhook não é de pagamento, ignorando');
+        return {
+          received: true,
+          message: 'Tipo de notificação não processado',
+        };
       }
-
-      return { status: 'received', timestamp: new Date().toISOString() };
     } catch (error) {
-      console.error('❌ Erro no webhook:', error);
+      console.error('❌ Erro ao processar webhook:', error);
       return {
-        status: 'error',
-        message: error.message,
-        timestamp: new Date().toISOString(),
+        received: false,
+        error: error.message,
       };
     }
+  }
+
+  // ✅ ENDPOINT ADICIONAL PARA TESTE
+  @Post('test')
+  @HttpCode(200)
+  async testarWebhook(@Body() data: any) {
+    console.log('🧪 Teste de webhook:', data);
+    return { message: 'Webhook de teste recebido', data };
   }
 }

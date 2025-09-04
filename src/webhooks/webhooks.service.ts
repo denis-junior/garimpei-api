@@ -34,14 +34,15 @@ export class WebhooksService {
         status_detail: mpPayment.status_detail,
         transaction_amount: mpPayment.transaction_amount,
         currency_id: mpPayment.currency_id,
+        payment_method_id: mpPayment.payment_method_id, // ✅ PIX ou card
         payer_email: mpPayment.payer?.email,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        external_reference: mpPayment.external_reference, // ✅ IMPORTANTE
         metadata: mpPayment.metadata,
       });
 
       // Buscar transação no banco pelo payment_id
       const transaction = await this.transactionRepository.findOne({
-        where: { payment_id: paymentId },
+        where: { payment_id: paymentId.toString() }, // ✅ GARANTIR STRING
       });
 
       if (transaction) {
@@ -55,6 +56,7 @@ export class WebhooksService {
           // Atualizar status da transação
           transaction.status = statusNovo;
           transaction.metadata_pagamento = mpPayment;
+          transaction.updated_at = new Date(); // ✅ TIMESTAMP
 
           await this.transactionRepository.save(transaction);
 
@@ -65,21 +67,11 @@ export class WebhooksService {
             status_novo: statusNovo,
             vendedor_id: transaction.vendedor_id,
             valor_total: transaction.valor_total,
+            tipo_pagamento: transaction.tipo_pagamento, // ✅ PIX ou CARD
           });
 
-          // Aqui você pode adicionar lógica adicional baseada no status:
-          if (statusNovo === 'approved') {
-            console.log(
-              `💰 Pagamento aprovado! Pode liberar o produto/serviço.`,
-            );
-            // TODO: Enviar email para vendedor, atualizar estoque, etc.
-          } else if (statusNovo === 'rejected') {
-            console.log(`❌ Pagamento rejeitado! Cancelar pedido.`);
-            // TODO: Notificar vendedor, liberar estoque, etc.
-          } else if (statusNovo === 'pending') {
-            console.log(`⏳ Pagamento pendente. Aguardando processamento.`);
-            // TODO: Notificar sobre pendência
-          }
+          // ✅ PROCESSAR AÇÕES BASEADAS NO STATUS E TIPO
+          await this.processarAcoesPorStatus(transaction, mpPayment);
         } else {
           console.log(
             `ℹ️ Status não mudou (${statusNovo}). Nenhuma ação necessária.`,
@@ -89,9 +81,26 @@ export class WebhooksService {
         console.log(
           `⚠️ Transação não encontrada no banco para payment_id: ${paymentId}`,
         );
-        console.log(
-          `💡 Isso pode acontecer se o webhook chegar antes do processamento inicial.`,
-        );
+
+        // ✅ TENTAR BUSCAR POR EXTERNAL_REFERENCE
+        if (mpPayment.external_reference) {
+          const transactionByRef = await this.transactionRepository.findOne({
+            where: { external_reference: mpPayment.external_reference },
+          });
+
+          if (transactionByRef) {
+            console.log(`📝 Transação encontrada por external_reference`);
+            // Atualizar payment_id que pode ter mudado
+            transactionByRef.payment_id = paymentId.toString();
+            transactionByRef.status = mpPayment.status;
+            transactionByRef.metadata_pagamento = mpPayment;
+            await this.transactionRepository.save(transactionByRef);
+          } else {
+            console.log(
+              `💡 Isso pode acontecer se o webhook chegar antes do processamento inicial.`,
+            );
+          }
+        }
       }
 
       return mpPayment;
@@ -101,6 +110,103 @@ export class WebhooksService {
         error,
       );
       throw error;
+    }
+  }
+
+  // ✅ NOVO MÉTODO PARA PROCESSAR AÇÕES ESPECÍFICAS
+  private async processarAcoesPorStatus(transaction: any, mpPayment: any) {
+    const isPix = mpPayment.payment_method_id === 'pix';
+    const isManualSplit = transaction.tipo_pagamento === 'pix_manual_split';
+
+    switch (mpPayment.status) {
+      case 'approved':
+        console.log('✅ Pagamento aprovado - processando...');
+
+        if (isPix && isManualSplit) {
+          console.log(`💰 PIX Manual Split - Agendar transferência:`);
+          console.log(`   🏪 Vendedor ${transaction.vendedor_id}: R$ ${transaction.valor_vendedor}`);
+          console.log(`   🏢 Plataforma: R$ ${transaction.comissao_plataforma}`);
+
+          // ✅ MARCAR PARA TRANSFERÊNCIA MANUAL
+          await this.agendarTransferenciaManual(transaction);
+        } else if (!isPix) {
+          console.log(`💳 Cartão - Split automático já processado pelo MP`);
+        }
+
+        // ✅ NOTIFICAÇÕES (IMPLEMENTAR DEPOIS)
+        // await this.enviarNotificacoes(transaction, 'approved');
+
+        break;
+
+      case 'pending':
+        console.log('⏳ Pagamento pendente');
+        if (isPix) {
+          console.log('   📱 PIX gerado, aguardando pagamento do usuário');
+        }
+        break;
+
+      case 'rejected':
+        console.log('❌ Pagamento rejeitado');
+        // ✅ CANCELAR PEDIDO, LIBERAR ESTOQUE
+        break;
+
+      case 'cancelled':
+        console.log('🚫 Pagamento cancelado');
+        // ✅ CANCELAR PEDIDO
+        break;
+
+      default:
+        console.log(`ℹ️ Status não processado: ${mpPayment.status}`);
+    }
+  }
+
+  // ✅ MÉTODO PARA AGENDAR TRANSFERÊNCIA MANUAL
+  private async agendarTransferenciaManual(transaction: any) {
+    try {
+      // Atualizar status para indicar que precisa de transferência
+      transaction.transfer_status = 'pending';
+      transaction.transfer_scheduled_at = new Date();
+      await this.transactionRepository.save(transaction);
+
+      console.log(`📅 Transferência manual agendada para transação ${transaction.id}`);
+
+      // TODO: Implementar sistema de transferências
+      // - Enviar para fila de processamento
+      // - Notificar admin
+      // - Criar registro de transferência
+    } catch (error) {
+      console.error('❌ Erro ao agendar transferência manual:', error);
+    }
+  }
+
+  // ✅ MÉTODO PARA BUSCAR STATUS ATUAL
+  async verificarStatusPagamento(paymentId: string) {
+    try {
+      const mpPayment = await this.payment.get({ id: paymentId });
+      return {
+        status: mpPayment.status,
+        status_detail: mpPayment.status_detail,
+        transaction_amount: mpPayment.transaction_amount,
+        payment_method_id: mpPayment.payment_method_id,
+        date_approved: mpPayment.date_approved,
+        payment: mpPayment,
+      };
+    } catch (error) {
+      console.error('❌ Erro ao verificar status:', error);
+      throw new Error(`Erro ao verificar status: ${error.message}`);
+    }
+  }
+
+  // ✅ ADICIONAR MÉTODO PARA BUSCAR TRANSAÇÃO
+  async buscarTransacaoPorPaymentId(paymentId: string) {
+    try {
+      const transaction = await this.transactionRepository.findOne({
+        where: { payment_id: paymentId.toString() }
+      });
+      return transaction;
+    } catch (error) {
+      console.error('❌ Erro ao buscar transação:', error);
+      throw new Error(`Erro ao buscar transação: ${error.message}`);
     }
   }
 }
