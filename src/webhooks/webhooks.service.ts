@@ -14,7 +14,7 @@ export class WebhooksService {
     private transactionRepository: Repository<Transaction>,
   ) {
     this.client = new MercadoPagoConfig({
-      accessToken: process.env.MP_ACCESS_TOKEN,
+      accessToken: process.env.MP_ACCESS_TOKEN_PROD,
     });
     this.payment = new Payment(this.client);
   }
