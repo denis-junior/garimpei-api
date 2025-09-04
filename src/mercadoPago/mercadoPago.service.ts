@@ -20,7 +20,6 @@ export class MercadoPagoService {
     private transactionRepository: Repository<Transaction>,
     @InjectRepository(Seller)
     private sellerRepository: Repository<Seller>,
-    // ✅ INJETAR O AUTH SERVICE
     private readonly oauthService: MercadoPagoOAuthService,
   ) {
     this.client = new MercadoPagoConfig({
@@ -419,6 +418,7 @@ export class MercadoPagoService {
   // Adicionar método público para buscar pagamento
   async buscarPagamento(paymentId: string) {
     try {
+      console.log('payment Id ', paymentId);
       const payment = await this.payment.get({ id: paymentId });
       return {
         success: true,
@@ -776,7 +776,9 @@ export class MercadoPagoService {
       });
 
       if (!transaction) {
-        console.log(`⚠️ Transação não encontrada para payment_id: ${paymentId}`);
+        console.log(
+          `⚠️ Transação não encontrada para payment_id: ${paymentId}`,
+        );
         return null;
       }
 

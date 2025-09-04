@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpCode } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, Get } from '@nestjs/common';
 import { WebhooksService } from './webhooks.service';
 
 @Controller('webhooks')
@@ -37,6 +37,7 @@ export class WebhooksController {
       console.error('❌ Erro ao processar webhook:', error);
       return {
         received: false,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
         error: error.message,
       };
     }
@@ -45,8 +46,15 @@ export class WebhooksController {
   // ✅ ENDPOINT ADICIONAL PARA TESTE
   @Post('test')
   @HttpCode(200)
-  async testarWebhook(@Body() data: any) {
+  testarWebhook(@Body() data: any) {
     console.log('🧪 Teste de webhook:', data);
     return { message: 'Webhook de teste recebido', data };
+  }
+
+  // ✅ ENDPOINT PARA VER ESTATÍSTICAS
+  @Get('transferencias/stats')
+  obterEstatisticas() {
+    // Implementar depois se necessário
+    return { message: 'Estatísticas em desenvolvimento' };
   }
 }

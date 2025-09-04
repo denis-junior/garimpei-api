@@ -22,6 +22,9 @@ export class Seller {
   cpf: string;
 
   @Column({ default: '' })
+  chavepix: string;
+
+  @Column({ default: '' })
   email: string;
 
   @Column({ type: 'text', nullable: true })

@@ -56,7 +56,7 @@ export class WebhooksService {
           // Atualizar status da transação
           transaction.status = statusNovo;
           transaction.metadata_pagamento = mpPayment;
-          transaction.updated_at = new Date(); // ✅ TIMESTAMP
+          transaction.updated_at = new Date();
 
           await this.transactionRepository.save(transaction);
 
@@ -167,9 +167,7 @@ export class WebhooksService {
   // ✅ MÉTODO CORRIGIDO PARA AGENDAR TRANSFERÊNCIA MANUAL
   private async agendarTransferenciaManual(transaction: Transaction) {
     try {
-      // ✅ NÃO ALTERAR O STATUS - ELE JÁ ESTÁ CORRETO (approved)
-      // ✅ USAR CAMPO QUE EXISTE NA ENTIDADE
-      transaction.updated_at = new Date(); // ✅ APENAS ATUALIZAR TIMESTAMP
+      transaction.updated_at = new Date();
 
       // ✅ MARCAR NO METADATA PARA CONTROLE
       const metadata = transaction.metadata_pagamento || {};
@@ -191,12 +189,6 @@ export class WebhooksService {
       console.log(
         `   🏢 Comissão plataforma: R$ ${transaction.comissao_plataforma}`,
       );
-
-      // ✅ AQUI VOCÊ PODE:
-      // 1. Enviar email/notificação para admin
-      // 2. Adicionar à fila de processamento
-      // 3. Salvar em tabela separada de transferências
-      // 4. Integrar com sistema de pagamentos
     } catch (error) {
       console.error('❌ Erro ao agendar transferência manual:', error);
     }
@@ -231,5 +223,48 @@ export class WebhooksService {
       console.error('❌ Erro ao buscar transação:', error);
       throw new Error(`Erro ao buscar transação: ${error.message}`);
     }
+  }
+
+  // ✅ MÉTODO AUXILIAR: AGRUPAR TRANSAÇÕES POR VENDEDOR
+  private agruparTransferenciasPorVendedor(
+    transacoes: Transaction[],
+  ): Record<string, Transaction[]> {
+    return transacoes.reduce(
+      (grupos, transacao) => {
+        const vendedorId = transacao.vendedor_id;
+        if (!grupos[vendedorId]) {
+          grupos[vendedorId] = [];
+        }
+        grupos[vendedorId].push(transacao);
+        return grupos;
+      },
+      {} as Record<string, Transaction[]>,
+    );
+  }
+
+  // ✅ CORRIGIR TIPO DO PARÂMETRO
+  private async marcarTransacoesComoProcessadas(
+    transacoes: Transaction[],
+    resultado: {
+      success: boolean;
+      transactionId?: string;
+      status?: string;
+      external_reference?: string;
+    },
+  ) {
+    for (const transacao of transacoes) {
+      const metadata = transacao.metadata_pagamento || {};
+      metadata.transfer_completed = true;
+      metadata.transfer_completed_at = new Date().toISOString();
+      metadata.transfer_transaction_id = resultado.transactionId;
+      metadata.transfer_external_reference = resultado.external_reference;
+      metadata.transfer_status = resultado.status || 'completed';
+      metadata.transfer_method = 'mercadopago_api';
+
+      transacao.metadata_pagamento = metadata;
+      await this.transactionRepository.save(transacao);
+    }
+
+    console.log(`✅ ${transacoes.length} transações marcadas como processadas`);
   }
 }
