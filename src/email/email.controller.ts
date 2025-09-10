@@ -55,6 +55,7 @@ export class EmailController {
       auctioned_at: null,
       payment_warning_sent_at: null,
       current_winner_bid_id: null,
+      excludedBidders: null,
       auction_attempt: 1,
     };
 

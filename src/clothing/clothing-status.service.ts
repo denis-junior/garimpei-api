@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Not, Repository } from 'typeorm';
 import { Clothing, ClothingStatus } from './clothing.entity';
@@ -113,7 +113,12 @@ export class ClothingStatusService {
       return;
     }
 
-    const winningBid = this.findWinningBid(clothing, clothing.auction_attempt);
+    // DEBUG: Verificar o attempt atual
+    this.logger.log(
+      `DEBUG: Clothing ${clothing.id} current auction_attempt: ${clothing.auction_attempt}`,
+    );
+
+    const winningBid = this.findWinningBid(clothing, 0); // Sempre 0 para primeira tentativa
     if (!winningBid) {
       this.logger.log(
         `📝 Clothing ${clothing.id} ended but no valid winning bid found`,
@@ -149,6 +154,7 @@ export class ClothingStatusService {
         status: 'auctioned',
         auctioned_at: this.getBrazilianTime(),
         current_winner_bid_id: winningBid.id,
+        auction_attempt: 0, // <- ADICIONAR ESTA LINHA para garantir que começa em 0
       });
 
       this.logger.log(
@@ -263,11 +269,19 @@ export class ClothingStatusService {
    * Processa o próximo lance (segunda chance)
    */
   private async processNextBidder(clothing: Clothing): Promise<void> {
-    const nextAttempt = clothing.auction_attempt + 1;
-    const nextWinningBid = this.findWinningBid(clothing, nextAttempt);
+    // Marcar o buyer atual como excluído
+    const currentWinningBid = clothing.bids?.find(
+      (bid) => bid.id === clothing.current_winner_bid_id,
+    );
+    if (currentWinningBid?.buyer) {
+      await this.markWinnerAsExcluded(clothing.id, currentWinningBid.buyer.id);
+    }
 
-    if (!nextWinningBid) {
-      // Não há mais lances, finalizar sem vencedor
+    // Usar o método getNextValidWinner para encontrar o próximo vencedor
+    const nextWinnerData = await this.getNextValidWinner(clothing.id);
+
+    if (!nextWinnerData) {
+      // Não há mais lances válidos, finalizar sem vencedor
       await this.clothingRepository.update(clothing.id, {
         status: 'finished',
       });
@@ -278,26 +292,33 @@ export class ClothingStatusService {
       return;
     }
 
+    const nextAttempt = clothing.auction_attempt + 1;
+    const {
+      buyer: nextBuyer,
+      bid: nextWinningBid,
+      clothing: updatedClothing,
+    } = nextWinnerData;
+
     try {
       // Enviar email de segunda chance
       await this.emailService.sendSecondChanceEmail({
-        winner: nextWinningBid.buyer,
-        clothing,
+        winner: nextBuyer,
+        clothing: updatedClothing,
         winningBid: Number(nextWinningBid.bid),
-        auctionEndDate: clothing.end_date || '',
-        auctionEndTime: clothing.end_time || '',
+        auctionEndDate: updatedClothing.end_date || '',
+        auctionEndTime: updatedClothing.end_time || '',
         attemptNumber: nextAttempt + 1,
       });
 
       // Enviar WhatsApp de segunda chance
-      if (nextWinningBid.buyer.contact) {
+      if (nextBuyer.contact) {
         await this.whatsappService.sendSecondChanceNotification({
-          winnerName: nextWinningBid.buyer.name,
-          winnerPhone: nextWinningBid.buyer.contact,
-          clothingTitle: clothing.name,
+          winnerName: nextBuyer.name,
+          winnerPhone: nextBuyer.contact,
+          clothingTitle: updatedClothing.name,
           winningBid: Number(nextWinningBid.bid),
           attemptNumber: nextAttempt + 1,
-          storeAccount: clothing.store.instagram || '',
+          storeAccount: updatedClothing.store?.instagram || '',
         });
       }
 
@@ -311,7 +332,7 @@ export class ClothingStatusService {
       });
 
       this.logger.log(
-        `Clothing ${clothing.id} started second chance with attempt #${nextAttempt + 1} - Email and WhatsApp sent to ${nextWinningBid.buyer.email}`,
+        `Clothing ${clothing.id} started second chance with attempt #${nextAttempt + 1} - Email and WhatsApp sent to ${nextBuyer.email}`,
       );
     } catch (error) {
       this.logger.error(
@@ -322,7 +343,7 @@ export class ClothingStatusService {
   }
 
   /**
-   * Encontra o lance vencedor baseado na tentativa atual
+   * Encontra o lance vencedor baseado na tentativa atual, excluindo bidders já notificados
    */
   private findWinningBid(
     clothing: Clothing,
@@ -330,13 +351,62 @@ export class ClothingStatusService {
   ): Bid | null {
     if (!clothing.bids || clothing.bids.length === 0) return null;
 
-    // Ordenar bids por valor decrescente
-    const sortedBids = clothing.bids
+    // 1. Primeiro, ordenar TODOS os bids por valor decrescente
+    const allBidsSorted = clothing.bids
       .filter((bid) => bid.buyer) // Garantir que tem buyer
       .sort((a, b) => Number(b.bid) - Number(a.bid));
 
-    // Retornar o bid da tentativa especificada
-    return sortedBids[attemptNumber] || null;
+    // 2. Criar array para armazenar buyers únicos já processados
+    const processedBuyers = new Set<number>();
+    const uniqueBuyerBids: Bid[] = [];
+
+    // 3. Percorrer os bids ordenados e pegar apenas o primeiro (maior) de cada buyer
+    for (const bid of allBidsSorted) {
+      const buyerId = bid.buyer.id;
+
+      // Se já processamos este buyer, pular
+      if (processedBuyers.has(buyerId)) {
+        continue;
+      }
+
+      // Se este buyer está excluído, pular
+      if (clothing.excludedBidders?.includes(buyerId)) {
+        continue;
+      }
+
+      // Adicionar à lista de únicos e marcar como processado
+      uniqueBuyerBids.push(bid);
+      processedBuyers.add(buyerId);
+    }
+
+    this.logger.log(
+      `Clothing ${clothing.id}: Found ${uniqueBuyerBids.length} unique buyers with valid bids after filtering excluded`,
+    );
+
+    // Log detalhado para debug
+    this.logger.log(
+      `Unique buyers with their highest bids: ${uniqueBuyerBids
+        .map(
+          (bid) =>
+            `Buyer ${bid.buyer.id} (${bid.buyer.name}): R$ ${bid.bid} (Bid ID: ${bid.id})`,
+        )
+        .join(', ')}`,
+    );
+
+    this.logger.log(
+      `Excluded bidders: ${JSON.stringify(clothing.excludedBidders || [])}`,
+    );
+
+    // 4. Retornar o bid da tentativa especificada
+    const selectedBid = uniqueBuyerBids[attemptNumber] || null;
+
+    if (selectedBid) {
+      this.logger.log(
+        `Selected winning bid: ID ${selectedBid.id} from Buyer ${selectedBid.buyer.id} (${selectedBid.buyer.name}) - R$ ${selectedBid.bid}`,
+      );
+    }
+
+    return selectedBid;
   }
 
   /**
@@ -581,5 +651,81 @@ export class ClothingStatusService {
     }
 
     return { isValid: errors.length === 0, errors };
+  }
+
+  /**
+   * Marca um comprador como excluído (já foi notificado e não pagou)
+   */
+  public async markWinnerAsExcluded(
+    clothingId: number,
+    buyerId: number,
+  ): Promise<void> {
+    const clothing = await this.clothingRepository.findOne({
+      where: { id: clothingId },
+      relations: ['bids', 'bids.buyer'], // Adicionar relations para o log
+    });
+
+    if (!clothing) {
+      throw new NotFoundException('Clothing not found');
+    }
+
+    // Adiciona o buyer à lista de excluídos se não estiver já
+    if (!clothing.excludedBidders) {
+      clothing.excludedBidders = [];
+    }
+
+    console.log('Current excluded bidders:', clothing.excludedBidders);
+
+    if (!clothing.excludedBidders.includes(buyerId)) {
+      clothing.excludedBidders.push(buyerId);
+    }
+
+    // Limpa o vencedor atual
+    clothing.current_winner_bid_id = null;
+
+    await this.clothingRepository.save(clothing);
+
+    // Log mais detalhado
+    const buyerName =
+      clothing.bids?.find((bid) => bid.buyer?.id === buyerId)?.buyer?.name ||
+      'Unknown';
+
+    this.logger.log(
+      `✅ Buyer ${buyerId} (${buyerName}) marked as excluded for clothing ${clothingId}. Total excluded: [${clothing.excludedBidders.join(', ')}]`,
+    );
+  }
+
+  /**
+   * Obtém o próximo vencedor válido (não excluído)
+   */
+  public async getNextValidWinner(clothingId: number): Promise<{
+    buyer: any;
+    bid: Bid;
+    clothing: Clothing;
+  } | null> {
+    const clothing = await this.clothingRepository.findOne({
+      where: { id: clothingId },
+      relations: ['bids', 'bids.buyer', 'store', 'store.seller'],
+    });
+
+    if (!clothing) {
+      throw new NotFoundException('Clothing not found');
+    }
+
+    // PROBLEMA: deveria usar o próximo attempt, não sempre 0
+    const nextWinningBid = this.findWinningBid(
+      clothing,
+      clothing.auction_attempt + 1,
+    ); // <- CORRIGIR AQUI
+
+    if (!nextWinningBid) {
+      return null;
+    }
+
+    return {
+      buyer: nextWinningBid.buyer,
+      bid: nextWinningBid,
+      clothing,
+    };
   }
 }

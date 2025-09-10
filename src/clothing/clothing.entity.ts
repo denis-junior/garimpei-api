@@ -72,6 +72,9 @@ export class Clothing {
   @Column({ type: 'timestamp', nullable: true })
   payment_warning_sent_at: Date; // Quando o aviso de pagamento foi enviado
 
+  @Column('simple-array', { nullable: true })
+  excludedBidders: number[] = []; // IDs dos usuários excluídos do leilão
+
   @Column({ type: 'int', nullable: true })
   current_winner_bid_id: number; // ID do bid vencedor atual
 
