@@ -55,6 +55,7 @@ export class EmailController {
       auctioned_at: null,
       payment_warning_sent_at: null,
       current_winner_bid_id: null,
+      excludedBidders: null,
       auction_attempt: 1,
     };
 
@@ -84,6 +85,7 @@ export class EmailController {
       return {
         success: false,
         message: 'Erro ao enviar email de teste',
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
         error: error.message,
       };
     }
@@ -103,6 +105,7 @@ export class EmailController {
       return {
         success: false,
         message: 'Erro na conexão com servidor de email',
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
         error: error.message,
       };
     }

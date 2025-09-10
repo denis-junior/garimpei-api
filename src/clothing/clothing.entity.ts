@@ -75,6 +75,9 @@ export class Clothing {
   @Column({ type: 'int', nullable: true })
   current_winner_bid_id: number; // ID do bid vencedor atual
 
+  @Column('simple-array', { nullable: true })
+  excludedBidders: number[] = []; // IDs dos usuários excluídos do leilão
+
   @Column({ type: 'int', default: 0 })
   auction_attempt: number; // Tentativa atual (0 = primeiro vencedor, 1 = segundo, etc.)
 
