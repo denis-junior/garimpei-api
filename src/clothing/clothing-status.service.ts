@@ -8,6 +8,7 @@ import { parseISO } from 'date-fns';
 import { Bid } from 'src/bid/bid.entity';
 import { ConfigService } from '@nestjs/config';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
+import { Buyer } from 'src/buyer/buyer.entity';
 
 @Injectable()
 export class ClothingStatusService {
@@ -699,7 +700,7 @@ export class ClothingStatusService {
    * Obtém o próximo vencedor válido (não excluído)
    */
   public async getNextValidWinner(clothingId: number): Promise<{
-    buyer: any;
+    buyer: Buyer;
     bid: Bid;
     clothing: Clothing;
   } | null> {
