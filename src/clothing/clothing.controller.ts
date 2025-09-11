@@ -72,14 +72,12 @@ export class ClothingController {
     @Query('limit') limit = 10,
     @Query() searchDto: ClothingSearchDto,
   ) {
-    // Verificar se o usuário é um seller
-    if (!req.user?.seller) {
-      throw new ForbiddenException(
-        'Somente vendedores podem acessar esta rota',
-      );
-    }
-
-    // console.log('🔍 Authenticated seller:', req.user.seller);
+    // // Verificar se o usuário é um seller
+    // if (!req.user?.seller) {
+    //   throw new ForbiddenException(
+    //     'Somente vendedores podem acessar esta rota',
+    //   );
+    // }
 
     return this.clothingService.manageFindAll(
       Number(page),

@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Store } from './store.entity';
-import { ILike, Repository } from 'typeorm';
+import { ILike, Not, Repository } from 'typeorm';
 import { CreateStoreDto } from './dto/create-store.dto';
 import { UpdateStoreDto } from './dto/update-store.dto';
 
@@ -51,7 +51,7 @@ export class StoreService {
       ];
     }
 
-    console.log('Query Options:', whereConditions);
+    // console.log('Query Options:', whereConditions);
 
     const stores = await this.storeRepository.find({
       relations: ['seller', 'clothings'],
@@ -62,7 +62,10 @@ export class StoreService {
 
   async findOneSeller(id: number): Promise<Store> {
     const store = await this.storeRepository.findOne({
-      where: { id },
+      where: {
+        id,
+        clothings: { status: Not('disabled') },
+      },
       relations: ['seller', 'clothings', 'clothings.images', 'clothings.bids'],
     });
     if (!store) {
@@ -73,7 +76,10 @@ export class StoreService {
   }
   async findOne(id: number): Promise<Store> {
     const store = await this.storeRepository.findOne({
-      where: { id },
+      where: {
+        id,
+        clothings: { status: Not('disabled') },
+      },
       relations: ['seller', 'clothings', 'clothings.images', 'clothings.bids'],
     });
 
