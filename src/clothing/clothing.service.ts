@@ -88,7 +88,7 @@ export class ClothingService {
     const now = new Date();
 
     const clothings = await this.clothingRepository.find({
-      relations: ['bids', 'bids.buyer', 'store'],
+      relations: ['bids', 'bids.buyer', 'store', 'images'],
     });
 
     return clothings.filter((clothing) => {
@@ -109,7 +109,7 @@ export class ClothingService {
     const now = new Date();
 
     const clothings = await this.clothingRepository.find({
-      relations: ['bids', 'bids.buyer', 'store'],
+      relations: ['bids', 'bids.buyer', 'store', 'images'],
       where: {
         store: {
           seller: {
