@@ -50,7 +50,7 @@ export class ClothingStatusService {
         // 1. Verificar mudanças de status normais (programmed -> active -> ended)
         const newStatus = this.calculateClothingStatus(clothing, now);
 
-        if (newStatus !== clothing.status && newStatus !== 'auctioned') {
+        if (newStatus !== clothing.status) {
           updates.push({
             id: clothing.id,
             status: newStatus as ClothingStatus,
@@ -84,23 +84,20 @@ export class ClothingStatusService {
     clothing: Clothing,
     now: Date,
   ): Promise<void> {
-    const hour =
+    const oneHour =
       this.configService.get<number>('AUCTION_HOUR_TEST') * 60 * 1000;
-    const day = this.configService.get<number>('AUCTION_DAY_TEST') * 60 * 1000;
-    const days =
-      this.configService.get<number>('AUCTION_DAYS_TEST') * 60 * 1000;
+    const twoHour =
+      this.configService.get<number>('AUCTION_TWO_HOUR_TEST') * 60 * 1000;
+    // const day =
+    //   this.configService.get<number>('AUCTION_ONE_DAY_TEST') * 60 * 1000;
 
     switch (clothing.status) {
       case 'ended':
         await this.handleEndedStatus(clothing);
         break;
 
-      case 'auctioned':
-        await this.handleAuctionedStatus(clothing, now, hour);
-        break;
-
       case 'waiting_payment':
-        await this.handleWaitingPaymentStatus(clothing, now, day, days);
+        await this.handleWaitingPaymentStatus(clothing, now, oneHour, twoHour);
         break;
     }
   }
@@ -150,9 +147,9 @@ export class ClothingStatusService {
         });
       }
 
-      // Atualizar status para 'auctioned' e registrar timestamps
+      // Atualizar status para 'waiting_payment' e registrar timestamps
       await this.clothingRepository.update(clothing.id, {
-        status: 'auctioned',
+        status: 'waiting_payment',
         auctioned_at: this.getBrazilianTime(),
         current_winner_bid_id: winningBid.id,
         auction_attempt: 0, // <- ADICIONAR ESTA LINHA para garantir que começa em 0
@@ -170,48 +167,25 @@ export class ClothingStatusService {
   }
 
   /**
-   * Lida com clothings no status 'auctioned' - após 1 hora muda para waiting_payment
-   */
-  private async handleAuctionedStatus(
-    clothing: Clothing,
-    now: Date,
-    hour: number,
-  ): Promise<void> {
-    if (!clothing.auctioned_at) return;
-
-    const timeSinceAuctioned = now.getTime() - clothing.auctioned_at.getTime();
-
-    if (timeSinceAuctioned >= hour) {
-      await this.clothingRepository.update(clothing.id, {
-        status: 'waiting_payment',
-      });
-
-      this.logger.log(
-        `Clothing ${clothing.id} moved to 'waiting_payment' after 1 hour`,
-      );
-    }
-  }
-
-  /**
    * Lida com clothings no status 'waiting_payment'
    */
   private async handleWaitingPaymentStatus(
     clothing: Clothing,
     now: Date,
-    day: number,
-    days: number,
+    oneHour: number,
+    twoHour: number,
   ): Promise<void> {
     if (!clothing.auctioned_at) return;
 
     const timeSinceAuctioned = now.getTime() - clothing.auctioned_at.getTime();
 
-    // Após 1 dia: enviar aviso para o seller (uma única vez)
-    if (timeSinceAuctioned >= day && !clothing.payment_warning_sent_at) {
+    // Após 1 hora: enviar aviso para o seller (uma única vez)
+    if (timeSinceAuctioned >= oneHour && !clothing.payment_warning_sent_at) {
       await this.sendPaymentWarningToSeller(clothing);
     }
 
-    // Após 2 dias: passar para o próximo lance
-    if (timeSinceAuctioned >= days) {
+    // Após 2 horas: passar para o próximo lance
+    if (timeSinceAuctioned >= twoHour) {
       await this.processNextBidder(clothing);
     }
   }
@@ -235,7 +209,7 @@ export class ClothingStatusService {
         clothing,
         winner: winningBid.buyer,
         winningBid: Number(winningBid.bid),
-        daysWaiting: 1,
+        hoursWaiting: 1,
       });
 
       // Enviar WhatsApp
@@ -246,7 +220,7 @@ export class ClothingStatusService {
           clothingTitle: clothing.name,
           winnerName: winningBid.buyer.name,
           winningBid: Number(winningBid.bid),
-          daysWaiting: 1,
+          hoursWaiting: 1,
         });
       }
 
@@ -293,13 +267,15 @@ export class ClothingStatusService {
       return;
     }
 
-    const nextAttempt = clothing.auction_attempt + 1;
     const {
       buyer: nextBuyer,
       bid: nextWinningBid,
       clothing: updatedClothing,
     } = nextWinnerData;
 
+    this.logger.log(
+      `clothing instagram: ${updatedClothing.store?.instagram || ''}`,
+    );
     try {
       // Enviar email de segunda chance
       await this.emailService.sendSecondChanceEmail({
@@ -308,7 +284,7 @@ export class ClothingStatusService {
         winningBid: Number(nextWinningBid.bid),
         auctionEndDate: updatedClothing.end_date || '',
         auctionEndTime: updatedClothing.end_time || '',
-        attemptNumber: nextAttempt + 1,
+        attemptNumber: updatedClothing.auction_attempt + 1,
       });
 
       // Enviar WhatsApp de segunda chance
@@ -318,22 +294,21 @@ export class ClothingStatusService {
           winnerPhone: nextBuyer.contact,
           clothingTitle: updatedClothing.name,
           winningBid: Number(nextWinningBid.bid),
-          attemptNumber: nextAttempt + 1,
+          attemptNumber: updatedClothing.auction_attempt + 1,
           storeAccount: updatedClothing.store?.instagram || '',
         });
       }
 
       // Resetar o processo para o novo vencedor
       await this.clothingRepository.update(clothing.id, {
-        status: 'auctioned',
-        auction_attempt: nextAttempt,
+        status: 'waiting_payment', // Mudar diretamente para 'waiting_payment' ao invés de 'ended'
         current_winner_bid_id: nextWinningBid.id,
         auctioned_at: this.getBrazilianTime(),
         payment_warning_sent_at: null,
       });
 
       this.logger.log(
-        `Clothing ${clothing.id} started second chance with attempt #${nextAttempt + 1} - Email and WhatsApp sent to ${nextBuyer.email}`,
+        `Clothing ${clothing.id} started second chance with attempt #${updatedClothing.auction_attempt + 1} - Email and WhatsApp sent to ${nextBuyer.email}`,
       );
     } catch (error) {
       this.logger.error(
@@ -398,6 +373,8 @@ export class ClothingStatusService {
       `Excluded bidders: ${JSON.stringify(clothing.excludedBidders || [])}`,
     );
 
+    this.logger.log(`Using attemptNumber: ${attemptNumber}`);
+
     // 4. Retornar o bid da tentativa especificada
     const selectedBid = uniqueBuyerBids[attemptNumber] || null;
 
@@ -405,6 +382,8 @@ export class ClothingStatusService {
       this.logger.log(
         `Selected winning bid: ID ${selectedBid.id} from Buyer ${selectedBid.buyer.id} (${selectedBid.buyer.name}) - R$ ${selectedBid.bid}`,
       );
+    } else {
+      this.logger.log(`No bid found for attempt ${attemptNumber}`);
     }
 
     return selectedBid;
@@ -480,9 +459,7 @@ export class ClothingStatusService {
     // Se passou da hora final e o status já é um dos pós-leilão, manter
     if (
       now > endDateTime &&
-      ['auctioned', 'waiting_payment', 'paid', 'finished'].includes(
-        clothing.status,
-      )
+      ['waiting_payment', 'paid', 'finished'].includes(clothing.status)
     ) {
       this.logger.debug(
         `Clothing ID ${clothing.id}: Keeping post-auction status (${clothing.status})`,
@@ -663,22 +640,27 @@ export class ClothingStatusService {
   ): Promise<void> {
     const clothing = await this.clothingRepository.findOne({
       where: { id: clothingId },
-      relations: ['bids', 'bids.buyer'], // Adicionar relations para o log
+      relations: ['bids', 'bids.buyer'],
     });
 
     if (!clothing) {
       throw new NotFoundException('Clothing not found');
     }
 
-    // Adiciona o buyer à lista de excluídos se não estiver já
+    // Inicializar array se não existir
     if (!clothing.excludedBidders) {
       clothing.excludedBidders = [];
     }
 
-    console.log('Current excluded bidders:', clothing.excludedBidders);
+    // Converter para array de números se necessário
+    const excludedNumbers = clothing.excludedBidders.map((id) =>
+      typeof id === 'string' ? parseInt(id, 10) : id,
+    );
 
-    if (!clothing.excludedBidders.includes(buyerId)) {
-      clothing.excludedBidders.push(buyerId);
+    // Adicionar apenas se não estiver na lista
+    if (!excludedNumbers.includes(buyerId)) {
+      excludedNumbers.push(buyerId);
+      clothing.excludedBidders = excludedNumbers;
     }
 
     // Limpa o vencedor atual
@@ -713,15 +695,23 @@ export class ClothingStatusService {
       throw new NotFoundException('Clothing not found');
     }
 
-    // PROBLEMA: deveria usar o próximo attempt, não sempre 0
-    const nextWinningBid = this.findWinningBid(
-      clothing,
-      clothing.auction_attempt + 1,
-    ); // <- CORRIGIR AQUI
+    // Incrementar a tentativa ANTES de buscar o próximo vencedor
+    const nextAttempt = clothing.auction_attempt + 1;
+
+    this.logger.log(
+      `Getting next winner for clothing ${clothingId}, current attempt: ${clothing.auction_attempt}, next attempt: ${nextAttempt}`,
+    );
+
+    // Buscar o próximo vencedor usando o próximo attempt
+    const nextWinningBid = this.findWinningBid(clothing, nextAttempt);
 
     if (!nextWinningBid) {
       return null;
     }
+
+    // Atualizar o auction_attempt no banco
+    clothing.auction_attempt = nextAttempt;
+    await this.clothingRepository.save(clothing);
 
     return {
       buyer: nextWinningBid.buyer,

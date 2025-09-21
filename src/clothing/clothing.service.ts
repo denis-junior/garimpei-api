@@ -91,18 +91,31 @@ export class ClothingService {
       relations: ['bids', 'bids.buyer', 'store', 'images'],
     });
 
-    return clothings.filter((clothing) => {
-      if (!clothing.end_date || !clothing.end_time) return false;
-      const endDateTime = new Date(`${clothing.end_date}T${clothing.end_time}`);
-      if (endDateTime.getTime() >= now.getTime()) return false;
-      if (!clothing.bids || clothing.bids.length === 0) return false;
+    return clothings
+      .filter((clothing) => {
+        if (!clothing.end_date || !clothing.end_time) return false;
+        const endDateTime = new Date(
+          `${clothing.end_date}T${clothing.end_time}`,
+        );
+        if (endDateTime.getTime() >= now.getTime()) return false;
+        if (!clothing.bids || clothing.bids.length === 0) return false;
 
-      // Encontra o maior lance
-      const highestBid = clothing.bids.reduce((max, bid) =>
-        Number(bid.bid) > Number(max.bid) ? bid : max,
-      );
-      return highestBid.buyer?.id === buyerId;
-    });
+        // Encontra o maior lance
+        const highestBid = clothing.bids.reduce((max, bid) =>
+          Number(bid.bid) > Number(max.bid) ? bid : max,
+        );
+        return highestBid.buyer?.id === buyerId;
+      })
+      .map((clothing) => {
+        // Filtra apenas os bids do buyer vencedor
+        const highestBid = clothing.bids.reduce((max, bid) =>
+          Number(bid.bid) > Number(max.bid) ? bid : max,
+        );
+        return {
+          ...clothing,
+          bids: [highestBid],
+        };
+      });
   }
 
   async findFinishedWithBidsBySeller(sellerId: number): Promise<Clothing[]> {
@@ -330,6 +343,82 @@ export class ClothingService {
     const end = start + limit;
     const items = clothings.slice(start, end);
     const lastPage = end >= clothings.length;
+
+    return {
+      items,
+      lastPage,
+    };
+  }
+
+  async getHistory(
+    page = 1,
+    limit = 10,
+    buyerId: number, // Novo parâmetro obrigatório
+    searchDto?: ClothingSearchDto,
+  ): Promise<{ items: Clothing[]; lastPage: boolean }> {
+    // Busca todas as roupas onde o buyer fez pelo menos um lance
+    const clothings =
+      searchDto?.situation === 'winner'
+        ? await this.findAuctionsWonByBuyer(buyerId)
+        : await this.clothingRepository.find({
+            relations: ['store', 'bids', 'bids.buyer', 'images'],
+            where: {
+              bids: {
+                buyer: {
+                  id: buyerId,
+                },
+              },
+            },
+          });
+
+    console.log('🔍 won clothings for buyer:', clothings);
+
+    // Aplica filtros adicionais se fornecidos
+    let filteredClothings = clothings;
+
+    if (searchDto?.status) {
+      filteredClothings = filteredClothings.filter(
+        (clothing) => clothing.status === searchDto.status,
+      );
+    }
+
+    if (searchDto?.size) {
+      filteredClothings = filteredClothings.filter(
+        (clothing) => clothing.size === searchDto.size,
+      );
+    }
+
+    if (searchDto?.storeId) {
+      filteredClothings = filteredClothings.filter(
+        (clothing) => clothing.store.id === searchDto.storeId,
+      );
+    }
+
+    if (searchDto?.minBid) {
+      filteredClothings = filteredClothings.filter(
+        (clothing) => Number(clothing.initial_bid) >= searchDto.minBid,
+      );
+    }
+
+    if (searchDto?.maxBid) {
+      filteredClothings = filteredClothings.filter(
+        (clothing) => Number(clothing.initial_bid) <= searchDto.maxBid,
+      );
+    }
+
+    if (searchDto?.querySearch) {
+      const searchTerm = searchDto.querySearch.toLowerCase().trim();
+      if (searchTerm.length >= 2) {
+        filteredClothings = filteredClothings.filter((clothing) =>
+          clothing.name.toLowerCase().includes(searchTerm),
+        );
+      }
+    }
+
+    const start = (page - 1) * limit;
+    const end = start + limit;
+    const items = filteredClothings.slice(start, end);
+    const lastPage = end >= filteredClothings.length;
 
     return {
       items,

@@ -22,7 +22,7 @@ export interface PaymentWarningEmailData {
   clothing: Clothing;
   winner: Buyer;
   winningBid: number;
-  daysWaiting: number;
+  hoursWaiting: number;
 }
 
 @Injectable()
@@ -122,6 +122,7 @@ export class EmailService {
         html: htmlContent,
       };
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const result = await this.transporter.sendMail(mailOptions);
 
       this.logger.log(
@@ -137,6 +138,7 @@ export class EmailService {
     } catch (error) {
       this.logger.error(
         `❌ Erro ao enviar email de aviso para seller ${data.seller?.email}:`,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         error.message,
       );
       throw error;
@@ -158,6 +160,7 @@ export class EmailService {
         html: htmlContent,
       };
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const result = await this.transporter.sendMail(mailOptions);
 
       this.logger.log(
@@ -173,6 +176,7 @@ export class EmailService {
     } catch (error) {
       this.logger.error(
         `❌ Erro ao enviar email de segunda chance para ${data.winner?.email}:`,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         error.message,
       );
       throw error;
@@ -291,7 +295,7 @@ export class EmailService {
         <a href="https://www.instagram.com/${data.clothing?.store?.instagram}" class="button">Entrar em contato com a loja via Instagram</a>
 
         <div class="observation">
-          ⚠️ Atenção: você tem o prazo de <strong>2 dias úteis</strong> para entrar em contato com a loja e concluir o pagamento com o vendedor. Após esse período, o item poderá ser repassado para outro interessado.
+          ⚠️ Atenção: você tem o prazo de <strong>1 hora</strong> para entrar em contato com a loja e concluir o pagamento com o vendedor. Após esse período, o item poderá ser repassado para outro interessado caso o pagamento não seja confirmado pelo vendedor.
         </div>
       </div>
 
@@ -392,7 +396,7 @@ export class EmailService {
   <body>
     <div class="container">
       <div class="warning-banner">
-        ⚠️ PAGAMENTO PENDENTE HÁ ${data.daysWaiting} DIA(S)
+        ⚠️ PAGAMENTO PENDENTE HÁ ${data.hoursWaiting} HORA(S)
       </div>
 
       <div class="header">
@@ -420,7 +424,7 @@ export class EmailService {
         <p><strong>Próximos passos:</strong></p>
         <ul class="steps">
           <li>Entre em contato com o comprador imediatamente</li>
-          <li>Caso não haja resposta, o próximo lance será acionado automaticamente em <strong>${2 - data.daysWaiting} dia(s)</strong></li>
+          <li>Caso não haja resposta, o próximo lance será acionado automaticamente em <strong>${2 - data.hoursWaiting} dia(s)</strong></li>
         </ul>
       </div>
 

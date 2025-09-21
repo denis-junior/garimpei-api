@@ -72,14 +72,39 @@ export class ClothingController {
     @Query('limit') limit = 10,
     @Query() searchDto: ClothingSearchDto,
   ) {
-    // // Verificar se o usuário é um seller
-    // if (!req.user?.seller) {
-    //   throw new ForbiddenException(
-    //     'Somente vendedores podem acessar esta rota',
-    //   );
-    // }
+    // Verificar se o usuário é um seller
+    if (!req.user?.seller) {
+      throw new ForbiddenException(
+        'Somente vendedores podem acessar esta rota',
+      );
+    }
 
     return this.clothingService.manageFindAll(
+      Number(page),
+      Number(limit),
+      req.user.userId,
+      searchDto,
+    );
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('history')
+  getHistory(
+    @Req() req: IRequestWithUser,
+    @Query('page') page = 1,
+    @Query('limit') limit = 10,
+    @Query() searchDto: ClothingSearchDto,
+  ) {
+    console.log('Search DTO:', searchDto);
+    console.log('Request user:', req.user);
+    // Verificar se o usuário é um seller
+    if (req.user?.seller) {
+      throw new ForbiddenException(
+        'Somente compradores podem acessar esta rota',
+      );
+    }
+
+    return this.clothingService.getHistory(
       Number(page),
       Number(limit),
       req.user.userId,

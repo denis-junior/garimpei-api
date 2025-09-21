@@ -43,6 +43,10 @@ export class ClothingSearchDto {
   finalDate?: string;
 
   @IsOptional()
+  @IsString()
+  situation?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(1)

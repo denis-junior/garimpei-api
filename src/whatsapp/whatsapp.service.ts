@@ -27,7 +27,7 @@ interface PaymentWarningData {
   clothingTitle: string;
   winnerName: string;
   winningBid: number;
-  daysWaiting: number;
+  hoursWaiting: number;
 }
 
 @Injectable()
@@ -128,7 +128,7 @@ _Garimpei - Seu lance, sua cena!_`;
   async sendPaymentWarningToSeller(data: PaymentWarningData): Promise<void> {
     const message = `⚠️ *Atenção ${data.sellerName}!*
 
-Pagamento pendente há ${data.daysWaiting} dia(s).
+Pagamento pendente há ${data.hoursWaiting} hora(s).
 
 📦 *Produto:* ${data.clothingTitle}
 🏆 *Vencedor:* ${data.winnerName}

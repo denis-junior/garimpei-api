@@ -14,7 +14,7 @@ export type ClothingStatus =
   | 'active'
   | 'disabled'
   | 'ended'
-  | 'auctioned'
+  // | 'auctioned'
   | 'paid'
   | 'waiting_payment'
   | 'finished';
