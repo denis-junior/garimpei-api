@@ -85,37 +85,19 @@ export class ClothingService {
   }
 
   async findAuctionsWonByBuyer(buyerId: number): Promise<Clothing[]> {
-    const now = new Date();
+    // const now = new Date();
 
     const clothings = await this.clothingRepository.find({
       relations: ['bids', 'bids.buyer', 'store', 'images'],
     });
 
-    return clothings
-      .filter((clothing) => {
-        if (!clothing.end_date || !clothing.end_time) return false;
-        const endDateTime = new Date(
-          `${clothing.end_date}T${clothing.end_time}`,
-        );
-        if (endDateTime.getTime() >= now.getTime()) return false;
-        if (!clothing.bids || clothing.bids.length === 0) return false;
-
-        // Encontra o maior lance
-        const highestBid = clothing.bids.reduce((max, bid) =>
-          Number(bid.bid) > Number(max.bid) ? bid : max,
-        );
-        return highestBid.buyer?.id === buyerId;
-      })
-      .map((clothing) => {
-        // Filtra apenas os bids do buyer vencedor
-        const highestBid = clothing.bids.reduce((max, bid) =>
-          Number(bid.bid) > Number(max.bid) ? bid : max,
-        );
-        return {
-          ...clothing,
-          bids: [highestBid],
-        };
-      });
+    return clothings.filter((c) => {
+      const isWinner = c.bids?.some(
+        (bid) =>
+          bid.id === c.current_winner_bid_id && bid.buyer?.id === buyerId,
+      );
+      return isWinner && c.current_winner_bid_id !== null;
+    });
   }
 
   async findFinishedWithBidsBySeller(sellerId: number): Promise<Clothing[]> {
@@ -357,6 +339,11 @@ export class ClothingService {
     searchDto?: ClothingSearchDto,
   ): Promise<{ items: Clothing[]; lastPage: boolean }> {
     // Busca todas as roupas onde o buyer fez pelo menos um lance
+    console.log(
+      '🔍 Fetching history for buyerId:',
+      buyerId,
+      searchDto.situation,
+    );
     const clothings =
       searchDto?.situation === 'winner'
         ? await this.findAuctionsWonByBuyer(buyerId)
